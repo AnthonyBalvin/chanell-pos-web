@@ -13,11 +13,16 @@ export function usePOS(cartRef) {
     const [loadingTurno, setLoadingTurno] = useState(true);
     const [cierreStats, setCierreStats] = useState({ ventas: 0, gastos: 0, esperado: 0 });
 
-    const [productos, setProductos] = useState([]);
     const [filteredProductos, setFilteredProductos] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Todos');
+    const [categories, setCategories] = useState(['Todos']);
+
+    // --- ESTADOS DE PAGINACIÓN ---
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
+    const itemsPerPage = 12; // Perfecto para grillas de 2, 3 o 4 columnas
 
     const [cart, setCart] = useState([]);
     const [clienteNombre, setClienteNombre] = useState('');
@@ -28,11 +33,9 @@ export function usePOS(cartRef) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [syncStatus, setSyncStatus] = useState('online');
 
-    const categories = ['Todos', ...new Set(productos.map(p => p.category).filter(Boolean))];
     const totalCart = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
     const [configuracionGlobal, setConfiguracionGlobal] = useState({ impuesto_porcentaje: 18 });
 
-    // --- NUEVO: Matemáticas en vivo para la interfaz exportadas ---
     const impuestoPorcentaje = configuracionGlobal?.impuesto_porcentaje || 18;
     const tasaDecimal = impuestoPorcentaje / 100;
     const subtotalCart = Math.round((totalCart / (1 + tasaDecimal)) * 100) / 100;
@@ -46,71 +49,99 @@ export function usePOS(cartRef) {
             setLoadingTurno(false);
         };
         checkTurno();
-        fetchConfiguracion(); // Llamamos a la configuración al iniciar
-        fetchProductos();
+        fetchConfiguracion();
+        fetchCategoriasEstaticas();
     }, [user]);
 
     const fetchConfiguracion = async () => {
         if (!navigator.onLine) return;
         const { data } = await supabase.from('configuracion').select('impuesto_porcentaje').eq('id', 1).single();
+        if (data) setConfiguracionGlobal(data);
+    };
+
+    const fetchCategoriasEstaticas = async () => {
+        const { data } = await supabase.from('productos').select('category');
         if (data) {
-            setConfiguracionGlobal(data);
+            const uniqueCats = ['Todos', ...new Set(data.map(p => p.category).filter(Boolean))];
+            setCategories(uniqueCats);
         }
     };
 
+    // --- EFECTO DE BÚSQUEDA Y PAGINACIÓN ---
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchProductos();
+        }, 300); // Debounce para no saturar BD
+        return () => clearTimeout(timer);
+    }, [currentPage, searchTerm, selectedCategory]);
+
     const fetchProductos = async () => {
+        setLoadingProducts(true);
+        const from = currentPage * itemsPerPage;
+        const to = from + itemsPerPage - 1;
+
         if (!navigator.onLine) {
             const localProducts = await db.catalog.toArray();
-            setProductos(localProducts);
-            setFilteredProductos(localProducts);
+            let filtered = localProducts;
+            if (selectedCategory !== 'Todos') filtered = filtered.filter(p => p.category === selectedCategory);
+            if (searchTerm) {
+                const lowerSearch = searchTerm.toLowerCase();
+                filtered = filtered.filter(p => p.name.toLowerCase().includes(lowerSearch) || (p.barcode && p.barcode.toLowerCase() === lowerSearch));
+            }
+            setTotalCount(filtered.length);
+            setFilteredProductos(filtered.slice(from, to + 1));
             setLoadingProducts(false);
             return;
         }
 
-        const { data, error } = await supabase.from('productos').select('*').order('name', { ascending: true });
+        let query = supabase.from('productos').select('*', { count: 'exact' }).order('name', { ascending: true });
+
+        if (selectedCategory !== 'Todos') query = query.eq('category', selectedCategory);
+        if (searchTerm) query = query.or(`name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%`);
+
+        const { data, count, error } = await query.range(from, to);
+
         if (!error && data) {
-            setProductos(data);
             setFilteredProductos(data);
-            await db.catalog.clear();
-            await db.catalog.bulkAdd(data);
+            setTotalCount(count || 0);
+            await db.catalog.bulkPut(data); // Actualizar caché local
         }
         setLoadingProducts(false);
     };
 
-    const processSyncQueue = async () => {
-        if (!navigator.onLine) {
-            setSyncStatus('offline');
-            return;
+    // --- LECTURA DE PISTOLA DE BARRAS ULTRA RÁPIDA ---
+    const handleSearchKeyDown = async (e) => {
+        if (e.key === 'Enter' && searchTerm) {
+            e.preventDefault();
+            const { data } = await supabase.from('productos').select('*').eq('barcode', searchTerm).single();
+            if (data && data.stock > 0) {
+                addToCart(data);
+                setSearchTerm('');
+            } else if (data && data.stock <= 0) {
+                uiManager.notify("Producto sin stock.", "warning");
+            }
         }
+    };
 
+    const processSyncQueue = async () => {
+        if (!navigator.onLine) { setSyncStatus('offline'); return; }
         const pendingSales = await db.sync_queue.where('status').equals('pending').toArray();
-        if (pendingSales.length === 0) {
-            setSyncStatus('online');
-            return;
-        }
+        if (pendingSales.length === 0) { setSyncStatus('online'); return; }
 
         setSyncStatus('syncing');
         for (const sale of pendingSales) {
             try {
                 const { error } = await supabase.rpc('procesar_venta_segura', { payload: sale.payload });
-
                 if (!error) {
                     await db.sync_queue.delete(sale.idempotency_key);
                 } else {
                     if (error.message && (error.message.toLowerCase().includes('insuficiente') || error.code === 'P0001')) {
-                        console.error(`Venta ${sale.payload.ticket} rechazada por falta de stock en servidor.`);
-                        await db.sync_queue.update(sale.idempotency_key, {
-                            status: 'error',
-                            errorMessage: 'Stock insuficiente en la nube. Operación manual requerida.'
-                        });
-                    }
-                    else if (error.message && (error.message.includes('Idempotencia') || error.message.includes('duplicate') || error.message.includes('ya existe'))) {
+                        await db.sync_queue.update(sale.idempotency_key, { status: 'error', errorMessage: 'Stock insuficiente en la nube.' });
+                    } else if (error.message && (error.message.includes('Idempotencia') || error.message.includes('duplicate') || error.message.includes('ya existe'))) {
                         await db.sync_queue.delete(sale.idempotency_key);
                     }
                 }
-            } catch (err) {
-                console.error("Error sincronizando ticket offline", err);
-            }
+            } catch (err) { console.error("Error sincronizando", err); }
         }
         setSyncStatus('online');
         fetchProductos();
@@ -119,23 +150,10 @@ export function usePOS(cartRef) {
     useEffect(() => {
         const handleOnline = () => processSyncQueue();
         const handleOffline = () => setSyncStatus('offline');
-
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-
-        if (navigator.onLine) processSyncQueue();
-        else setSyncStatus('offline');
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
-    useEffect(() => {
-        window.addEventListener('online', processSyncQueue);
-        if (navigator.onLine) processSyncQueue();
-        return () => window.removeEventListener('online', processSyncQueue);
+        if (navigator.onLine) processSyncQueue(); else setSyncStatus('offline');
+        return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
     }, []);
 
     useEffect(() => {
@@ -153,26 +171,6 @@ export function usePOS(cartRef) {
         return () => clearTimeout(timeoutId);
     }, [clienteDni]);
 
-    useEffect(() => {
-        let result = productos;
-        if (selectedCategory !== 'Todos') result = result.filter(p => p.category === selectedCategory);
-        if (searchTerm) {
-            const lowerSearch = searchTerm.toLowerCase();
-            result = result.filter(p => p.name.toLowerCase().includes(lowerSearch) || (p.barcode && p.barcode.toLowerCase() === lowerSearch) || p.category.toLowerCase().includes(lowerSearch));
-        }
-        setFilteredProductos(result);
-    }, [searchTerm, selectedCategory, productos]);
-
-    const handleSearchKeyDown = (e) => {
-        if (e.key === 'Enter' && searchTerm) {
-            const exactMatch = productos.find(p => p.barcode === searchTerm);
-            if (exactMatch && exactMatch.stock > 0) {
-                addToCart(exactMatch);
-                setSearchTerm('');
-            }
-        }
-    };
-
     const abrirCaja = async (monto) => {
         const { data, error } = await supabase.from('turnos_caja').insert([{
             usuario_id: user.id, usuario_nombre: user?.user_metadata?.full_name || user?.email,
@@ -185,10 +183,7 @@ export function usePOS(cartRef) {
     const calcularCierre = async () => { };
 
     const cerrarCaja = async (declarado) => {
-        const { data, error } = await supabase.rpc('cerrar_caja_segura', {
-            p_turno_id: turnoActivo.id,
-            p_declarado: declarado
-        });
+        const { error } = await supabase.rpc('cerrar_caja_segura', { p_turno_id: turnoActivo.id, p_declarado: declarado });
         if (error) throw new Error(error.message);
         setTurnoActivo(null);
     };
@@ -224,17 +219,8 @@ export function usePOS(cartRef) {
         if (cart.length === 0 && !clienteDni) return;
         const isConfirmed = await uiManager.confirm("Vaciar Carrito", "¿Vaciar carrito y cancelar la venta actual?", true);
         if (isConfirmed) {
-            setCart([]);
-            setClienteNombre('');
-            setClienteDni('');
-            setClienteEncontrado(false);
-            setTipoComprobante('ticket');
+            setCart([]); setClienteNombre(''); setClienteDni(''); setClienteEncontrado(false); setTipoComprobante('ticket');
         }
-    };
-
-    const calcularMontosFinales = (totalVenta) => {
-        // Utilizamos la variable global calculada
-        return { subtotal: subtotalCart, igv: igvCart, total: Number(totalVenta.toFixed(2)) };
     };
 
     const handleCheckout = async () => {
@@ -251,8 +237,6 @@ export function usePOS(cartRef) {
             const nombreUsuario = user?.user_metadata?.full_name || user?.email || 'Vendedor POS';
             const idempotencyKey = uuidv4();
 
-            const montosFiscales = calcularMontosFinales(totalCart);
-
             const payloadTransaccion = {
                 idempotency_key: idempotencyKey,
                 ticket: ticketNumber,
@@ -261,14 +245,12 @@ export function usePOS(cartRef) {
                 metodo_entrega: 'pickup',
                 metodo_pago: metodoPago,
                 estado: 'vendido',
-
-                total: montosFiscales.total,
-                subtotal: montosFiscales.subtotal,
-                igv: montosFiscales.igv,
+                total: Number(totalCart.toFixed(2)),
+                subtotal: subtotalCart,
+                igv: igvCart,
                 tipo_comprobante: tipoComprobante.toUpperCase(),
                 ruc_cliente: tipoComprobante === 'factura' ? clienteDni : null,
                 razon_social: tipoComprobante === 'factura' ? clienteNombre : null,
-
                 items: cart,
                 direccion: `Comprobante Solicitado: ${tipoComprobante.toUpperCase()}`,
                 vendedor_id: user?.id,
@@ -278,33 +260,16 @@ export function usePOS(cartRef) {
             };
 
             if (navigator.onLine) {
-                const { data: rpcData, error: rpcError } = await supabase.rpc('procesar_venta_segura', { payload: payloadTransaccion });
+                const { error: rpcError } = await supabase.rpc('procesar_venta_segura', { payload: payloadTransaccion });
                 if (rpcError) throw new Error(rpcError.message || "Transacción rechazada por seguridad.");
-                uiManager.notify(`Venta exitosa: #${ticketNumber}\nSe ha registrado la solicitud de ${tipoComprobante.toUpperCase()}.`, "success");
+                uiManager.notify(`Venta exitosa: #${ticketNumber}`, "success");
             } else {
-                await db.sync_queue.add({
-                    idempotency_key: idempotencyKey,
-                    payload: payloadTransaccion,
-                    status: 'pending',
-                    created_at: new Date().toISOString()
-                });
-
-                const updatedProducts = [...productos];
-                for (const item of cart) {
-                    const localProd = await db.catalog.get(item.product.id);
-                    if (localProd) {
-                        localProd.stock -= item.quantity;
-                        await db.catalog.put(localProd);
-                    }
-                    const pIndex = updatedProducts.findIndex(p => p.id === item.product.id);
-                    if (pIndex !== -1) updatedProducts[pIndex].stock -= item.quantity;
-                }
-                setProductos(updatedProducts);
-                uiManager.notify(`[MODO OFFLINE] Venta guardada: #${ticketNumber}.\nSe sincronizará automáticamente al volver la conexión.`, "info");
+                await db.sync_queue.add({ idempotency_key: idempotencyKey, payload: payloadTransaccion, status: 'pending', created_at: new Date().toISOString() });
+                uiManager.notify(`[MODO OFFLINE] Venta guardada: #${ticketNumber}`, "info");
             }
 
-            setCart([]); setClienteNombre('Cliente Público'); setClienteDni(''); setClienteEncontrado(false); setTipoComprobante('ticket');
-            if (navigator.onLine) fetchProductos();
+            setCart([]); setClienteNombre(''); setClienteDni(''); setClienteEncontrado(false); setTipoComprobante('ticket');
+            fetchProductos();
 
         } catch (error) {
             uiManager.notify("Operación cancelada: " + error.message, "error");
@@ -315,11 +280,12 @@ export function usePOS(cartRef) {
 
     return {
         turnoActivo, loadingTurno, abrirCaja, calcularCierre, cerrarCaja, registrarGasto, cierreStats,
-        productos, filteredProductos, loadingProducts, searchTerm, setSearchTerm, handleSearchKeyDown, selectedCategory, setSelectedCategory, categories,
+        filteredProductos, loadingProducts, searchTerm, setSearchTerm, handleSearchKeyDown, selectedCategory, setSelectedCategory, categories,
+        currentPage, setCurrentPage, totalCount, totalPages: Math.ceil(totalCount / itemsPerPage), // Paginación exportada
         cart, addToCart, removeFromCart, updateQuantity, clearCart, totalCart,
         clienteNombre, setClienteNombre, clienteDni, setClienteDni, clienteEncontrado,
         metodoPago, setMetodoPago, tipoComprobante, setTipoComprobante,
         handleCheckout, isProcessing, syncStatus, configuracionGlobal,
-        impuestoPorcentaje, subtotalCart, igvCart // <-- AQUI ESTAN LAS MATEMATICAS EXPUESTAS
+        impuestoPorcentaje, subtotalCart, igvCart
     };
 }

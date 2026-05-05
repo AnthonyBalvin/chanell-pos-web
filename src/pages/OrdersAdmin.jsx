@@ -25,7 +25,7 @@ export default function OrdersAdmin() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [logisticFilter, setLogisticFilter] = useState('all');
     const [dateFilter, setDateFilter] = useState('all');
-    const [paymentFilter, setPaymentFilter] = useState('all'); // NUEVO: Filtro de Pago
+    const [paymentFilter, setPaymentFilter] = useState('all');
     const [exactDate, setExactDate] = useState('');
 
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -70,7 +70,7 @@ export default function OrdersAdmin() {
 
         if (statusFilter !== 'all') query = query.eq('estado', statusFilter);
         if (logisticFilter !== 'all') query = query.eq('metodo_entrega', logisticFilter);
-        if (paymentFilter !== 'all') query = query.eq('metodo_pago', paymentFilter); // NUEVO
+        if (paymentFilter !== 'all') query = query.eq('metodo_pago', paymentFilter);
 
         if (dateFilter !== 'all') {
             const today = new Date();
@@ -266,8 +266,6 @@ export default function OrdersAdmin() {
         }
     }, [isDetailsOpen]);
 
-    // --- NUEVO: EXPORTACIÓN A EXCEL (CSV) ---
-    // --- NUEVO: EXPORTACIÓN A EXCEL (XLSX REAL) ---
     const handleExportExcel = async () => {
         notify("Generando archivo Excel... Esto puede tardar unos segundos.", "info");
         let query = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
@@ -297,7 +295,6 @@ export default function OrdersAdmin() {
         const { data, error } = await query;
         if (error || !data) return notify("Error al exportar a Excel.", "error");
 
-        // LLAMAMOS AL NUEVO ARCHIVO LIMPIO
         exportarVentasExcel(data);
     };
 
@@ -308,30 +305,30 @@ export default function OrdersAdmin() {
         if (statusFilter !== 'all') query = query.eq('estado', statusFilter);
         if (logisticFilter !== 'all') query = query.eq('metodo_entrega', logisticFilter);
         if (paymentFilter !== 'all') query = query.eq('metodo_pago', paymentFilter);
-        // ... (misma lógica de fechas) ...
+
         const { data, error } = await query;
         if (!error && data) generateSummaryPDF(data);
         else notify("Error al generar el reporte completo.", "error");
     };
 
     return (
-        <div className="w-full space-y-6 pb-10">
+        <div className="w-full space-y-6 pb-24 sm:pb-10 sm:px-4 animate-in fade-in duration-500">
             {/* CABECERA CON BOTONES DE EXPORTACIÓN */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 sm:p-8 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
-                <div>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 sm:p-8 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
+                <div className="w-full md:w-auto">
                     <h2 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
-                        <Store className="text-[#3b82f6]" size={32} /> 
+                        <Store className="text-[#3b82f6]" size={28} />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#1e2a4a] to-[#3b82f6]">Historial de Ventas</span>
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">El registro auditable de todas las ventas físicas y web.</p>
+                    <p className="text-slate-500 text-xs sm:text-sm mt-1">El registro auditable de todas las ventas físicas y web.</p>
                 </div>
                 {/* Ocultamos los botones de Exportar para el vendedor */}
                 {(role === 'admin' || role === 'supervisor') && (
-                    <div className="flex w-full sm:w-auto gap-2">
-                        <button onClick={handleExportFullPDF} className="flex-1 sm:flex-none bg-[#1e2a4a] hover:bg-slate-800 text-white px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all shadow-[0_4px_15px_rgba(30,42,74,0.3)] hover:-translate-y-0.5">
-                            <FileText size={16} /> PDF
+                    <div className="flex w-full md:w-auto gap-2">
+                        <button onClick={handleExportFullPDF} className="flex-1 md:flex-none bg-[#1e2a4a] hover:bg-slate-800 text-white px-5 sm:px-6 py-3.5 sm:py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all shadow-[0_4px_15px_rgba(30,42,74,0.3)] hover:-translate-y-0.5">
+                            <FileText size={16} /> <span className="hidden sm:inline">PDF</span>
                         </button>
-                        <button onClick={handleExportExcel} className="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all shadow-[0_4px_15px_rgba(16,185,129,0.3)] hover:-translate-y-0.5">
+                        <button onClick={handleExportExcel} className="flex-[2] md:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-5 sm:px-6 py-3.5 sm:py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all shadow-[0_4px_15px_rgba(16,185,129,0.3)] hover:-translate-y-0.5">
                             <FileSpreadsheet size={16} /> Excel
                         </button>
                     </div>
@@ -339,28 +336,28 @@ export default function OrdersAdmin() {
             </div>
 
             {/* KPIS DE RENDIMIENTO */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="bg-white p-6 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full transition-transform group-hover:scale-110"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+                <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 bg-emerald-500/5 rounded-bl-full transition-transform group-hover:scale-110"></div>
                     <div className="relative z-10 flex justify-between items-start">
-                        <div><p className="text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">Ventas del Mes</p><h3 className="text-2xl font-black text-[#1e2a4a]">S/ {stats.ventasMes.toFixed(2)}</h3></div>
-                        <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-500"><TrendingUp size={24} /></div>
+                        <div><p className="text-slate-400 text-[9px] sm:text-[10px] font-black tracking-widest uppercase mb-1">Ventas del Mes</p><h3 className="text-xl sm:text-2xl font-black text-[#1e2a4a]">S/ {stats.ventasMes.toFixed(2)}</h3></div>
+                        <div className="p-2 sm:p-3 bg-emerald-50 rounded-xl sm:rounded-2xl text-emerald-500"><TrendingUp size={20} className="sm:w-6 sm:h-6" /></div>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-bl-full transition-transform group-hover:scale-110"></div>
+                <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 bg-amber-500/5 rounded-bl-full transition-transform group-hover:scale-110"></div>
                     <div className="relative z-10 flex justify-between items-start">
-                        <div><p className="text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">Por Cobrar (Web)</p><h3 className="text-2xl font-black text-[#1e2a4a]">{stats.pendientes} <span className="text-xs text-slate-500 font-bold">tickets</span></h3></div>
-                        <div className="p-3 bg-amber-50 rounded-2xl text-amber-500"><Clock size={24} /></div>
+                        <div><p className="text-slate-400 text-[9px] sm:text-[10px] font-black tracking-widest uppercase mb-1">Por Cobrar (Web)</p><h3 className="text-xl sm:text-2xl font-black text-[#1e2a4a]">{stats.pendientes} <span className="text-[10px] sm:text-xs text-slate-500 font-bold">tickets</span></h3></div>
+                        <div className="p-2 sm:p-3 bg-amber-50 rounded-xl sm:rounded-2xl text-amber-500"><Clock size={20} className="sm:w-6 sm:h-6" /></div>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-bl-full transition-transform group-hover:scale-110"></div>
+                <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 bg-red-500/5 rounded-bl-full transition-transform group-hover:scale-110"></div>
                     <div className="relative z-10 flex justify-between items-start">
-                        <div><p className="text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">Anulados</p><h3 className="text-2xl font-black text-[#1e2a4a]">{stats.anulados} <span className="text-xs text-slate-500 font-bold">tickets</span></h3></div>
-                        <div className="p-3 bg-red-50 rounded-2xl text-red-500"><AlertCircle size={24} /></div>
+                        <div><p className="text-slate-400 text-[9px] sm:text-[10px] font-black tracking-widest uppercase mb-1">Anulados</p><h3 className="text-xl sm:text-2xl font-black text-[#1e2a4a]">{stats.anulados} <span className="text-[10px] sm:text-xs text-slate-500 font-bold">tickets</span></h3></div>
+                        <div className="p-2 sm:p-3 bg-red-50 rounded-xl sm:rounded-2xl text-red-500"><AlertCircle size={20} className="sm:w-6 sm:h-6" /></div>
                     </div>
                 </div>
             </div>
@@ -370,28 +367,28 @@ export default function OrdersAdmin() {
                 <div className="relative w-full md:flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
-                        type="text" placeholder="Buscar ticket, cliente o DNI..."
-                        className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent rounded-2xl pl-12 pr-4 py-3 text-sm font-medium outline-none focus:bg-white focus:border-[#ec4899] text-[#1e2a4a] transition-all"
+                        type="text" placeholder="Buscar ticket o cliente..."
+                        className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent rounded-2xl pl-12 pr-4 py-3.5 text-sm font-medium outline-none focus:bg-white focus:border-[#ec4899] text-[#1e2a4a] transition-all placeholder:text-slate-400"
                         value={filter} onChange={(e) => setFilter(e.target.value)}
                     />
                 </div>
 
-                <div className="flex w-full md:w-auto gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                <div className="flex w-full md:w-auto gap-2 overflow-x-auto pb-1 md:pb-0 hide-scrollbar snap-x">
                     {/* Filtro Estado */}
-                    <div className="relative min-w-[150px]">
+                    <div className="relative min-w-[150px] snap-start">
                         <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ec4899]" size={14} />
-                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3 outline-none focus:bg-white focus:border-[#ec4899] appearance-none cursor-pointer transition-all">
-                            <option value="all">Todo el Historial</option>
+                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3.5 outline-none focus:bg-white focus:border-[#ec4899] appearance-none cursor-pointer transition-all">
+                            <option value="all">Estado (Todos)</option>
                             <option value="pendiente">Solo Pendientes</option>
                             <option value="vendido">Solo Vendidos</option>
                             <option value="anulado">Solo Anulados</option>
                         </select>
                     </div>
 
-                    {/* NUEVO: Filtro Método de Pago */}
-                    <div className="relative min-w-[150px]">
+                    {/* Filtro Método de Pago */}
+                    <div className="relative min-w-[150px] snap-start">
                         <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-[#3b82f6]" size={14} />
-                        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3 outline-none focus:bg-white focus:border-[#3b82f6] appearance-none cursor-pointer transition-all">
+                        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3.5 outline-none focus:bg-white focus:border-[#3b82f6] appearance-none cursor-pointer transition-all">
                             <option value="all">Pagos (Todos)</option>
                             <option value="efectivo">Efectivo</option>
                             <option value="tarjeta">Tarjeta (POS)</option>
@@ -401,9 +398,9 @@ export default function OrdersAdmin() {
                     </div>
 
                     {/* Filtro Logística */}
-                    <div className="relative min-w-[150px]">
+                    <div className="relative min-w-[150px] snap-start">
                         <Truck className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500" size={14} />
-                        <select value={logisticFilter} onChange={(e) => setLogisticFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3 outline-none focus:bg-white focus:border-emerald-500 appearance-none cursor-pointer transition-all">
+                        <select value={logisticFilter} onChange={(e) => setLogisticFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3.5 outline-none focus:bg-white focus:border-emerald-500 appearance-none cursor-pointer transition-all">
                             <option value="all">Logística (Todas)</option>
                             <option value="shipping">Solo Envíos</option>
                             <option value="pickup">Solo Recojo Tienda</option>
@@ -411,9 +408,9 @@ export default function OrdersAdmin() {
                     </div>
 
                     {/* Filtro Fecha */}
-                    <div className="relative min-w-[150px]">
+                    <div className="relative min-w-[150px] snap-start">
                         <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500" size={14} />
-                        <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3 outline-none focus:bg-white focus:border-amber-500 appearance-none cursor-pointer transition-all">
+                        <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full bg-[#f4f6f9] hover:bg-slate-100 border border-transparent text-[#1e2a4a] text-xs font-bold rounded-2xl pl-10 pr-4 py-3.5 outline-none focus:bg-white focus:border-amber-500 appearance-none cursor-pointer transition-all">
                             <option value="all">Fecha (Cualquiera)</option>
                             <option value="today">Ventas de Hoy</option>
                             <option value="week">Esta Semana</option>
@@ -424,110 +421,207 @@ export default function OrdersAdmin() {
                 </div>
 
                 {(statusFilter !== 'all' || logisticFilter !== 'all' || paymentFilter !== 'all' || dateFilter !== 'all' || filter) && (
-                    <button onClick={() => { setStatusFilter('all'); setLogisticFilter('all'); setPaymentFilter('all'); setDateFilter('all'); setExactDate(''); setFilter(''); }} className="p-3.5 text-slate-400 hover:text-red-500 bg-[#f4f6f9] hover:bg-red-50 rounded-2xl transition-colors"><X size={18} /></button>
+                    <button onClick={() => { setStatusFilter('all'); setLogisticFilter('all'); setPaymentFilter('all'); setDateFilter('all'); setExactDate(''); setFilter(''); }} className="hidden sm:block p-3.5 text-slate-400 hover:text-red-500 bg-[#f4f6f9] hover:bg-red-50 rounded-2xl transition-colors shrink-0"><X size={18} /></button>
                 )}
             </div>
 
-            {/* TABLA OPTIMIZADA */}
+            {/* TABLA OPTIMIZADA (HÍBRIDA: CARDS MÓVIL / TABLA DESKTOP) */}
             <div className="bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[1000px]">
-                        <thead>
-                            <tr className="bg-[#f4f6f9]/50 text-[#1e2a4a] text-[10px] uppercase tracking-widest font-black border-b border-slate-100">
-                                <th className="p-5">Ticket / Origen</th>
-                                <th className="p-5">Cliente</th>
-                                <th className="p-5">Logística</th>
-                                <th className="p-5">Monto</th>
-                                <th className="p-5 text-center">Estado Financiero</th>
-                                <th className="p-5 text-right">Acciones de Venta</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {loading && pedidos.length === 0 ? (
-                                <tr className="bg-white"><td colSpan="6" className="p-10 text-center text-slate-400"><Loader2 className="animate-spin mx-auto mb-2 text-[#3b82f6]" />Cargando bóveda de ventas...</td></tr>
-                            ) : pedidos.length === 0 ? (
-                                <tr className="bg-white"><td colSpan="6" className="p-10 text-center text-slate-400">No se encontraron tickets con los filtros actuales.</td></tr>
-                            ) : pedidos.map((p) => (
-                                <tr key={p.id} id={`row-${p.id}`} className={`hover:bg-slate-50/80 transition-colors bg-white group ${p.estado === 'anulado' ? 'opacity-60' : ''}`}>
-                                    <td className="p-5">
-                                        <div className="font-black text-[#3b82f6] text-sm">#{p.ticket}</div>
-                                        <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{new Date(p.created_at).toLocaleString('es-PE')}</div>
-                                        <div className="mt-2">
+
+                {loading && pedidos.length === 0 ? (
+                    <div className="flex flex-col justify-center items-center h-48 text-slate-400 space-y-4">
+                        <Loader2 className="animate-spin text-[#3b82f6]" size={32} />
+                        <p className="font-bold tracking-widest uppercase text-xs text-[#1e2a4a]">Cargando bóveda de ventas...</p>
+                    </div>
+                ) : pedidos.length === 0 ? (
+                    <div className="p-12 flex flex-col items-center justify-center text-slate-300">
+                        <Store size={56} className="mb-4 opacity-30 text-[#1e2a4a]" />
+                        <p className="font-bold text-[#1e2a4a]">No se encontraron tickets</p>
+                        <p className="text-xs text-slate-400 mt-1 text-center">Intenta ajustar los filtros de búsqueda.</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* === VISTA MÓVIL: TARJETAS (Oculto en Desktop) === */}
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {pedidos.map((p) => (
+                                <div key={p.id} id={`row-mobile-${p.id}`} className={`p-5 flex flex-col gap-3 ${p.estado === 'anulado' ? 'opacity-60 bg-slate-50' : 'bg-white'}`}>
+
+                                    {/* Top: Ticket & Estado */}
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-black text-[#3b82f6] text-sm">#{p.ticket}</div>
+                                            <div className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">{new Date(p.created_at).toLocaleString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                                        </div>
+                                        <StatusBadge status={p.estado} />
+                                    </div>
+
+                                    {/* Middle: Origen & Cliente */}
+                                    <div className="flex items-center justify-between mt-1">
+                                        <div className="text-sm font-bold text-[#1e2a4a] truncate max-w-[60%]">{p.cliente_nombre}</div>
+                                        <div className="shrink-0">
                                             {p.turno_id ? (
-                                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest"><Store size={10} /> POS Tienda</span>
+                                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest"><Store size={10} /> Tienda</span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest"><Globe size={10} /> Web Online</span>
+                                                <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest"><Globe size={10} /> Web</span>
                                             )}
                                         </div>
-                                    </td>
+                                    </div>
 
-                                    <td className="p-5">
-                                        <div className="text-sm font-bold text-[#1e2a4a] line-clamp-1">{p.cliente_nombre}</div>
-                                        <div className="text-xs text-slate-500 mt-0.5">Doc: <span className="font-bold text-slate-600">{p.cliente_dni_ruc || 'N/A'}</span></div>
-                                    </td>
+                                    {/* Info Logística y Pago */}
+                                    <div className="flex justify-between items-center bg-[#f4f6f9]/50 p-3 rounded-xl border border-slate-100">
+                                        <div className="flex flex-col gap-1">
+                                            {p.metodo_entrega === 'pickup' ? (
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#ec4899] uppercase"><Store size={12} /> Recojo</div>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-500 uppercase"><Truck size={12} /> Envío</div>
+                                            )}
+                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest"><CreditCard size={10} className="inline mr-1" />{p.metodo_pago}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">Total</span>
+                                            <span className="font-black text-[#1e2a4a] text-lg">S/ {p.total?.toFixed(2)}</span>
+                                        </div>
+                                    </div>
 
-                                    <td className="p-5">
-                                        {p.metodo_entrega === 'pickup' ? (
-                                            <div className="flex items-center gap-1.5 text-xs font-bold text-[#ec4899] uppercase"><Store size={14} /> Recojo Tienda</div>
-                                        ) : (
-                                            <div>
-                                                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase"><Truck size={14} /> Envío</div>
-                                                <div className="text-[10px] font-bold text-slate-400 uppercase mt-1 line-clamp-1">Vía: {p.agencia}</div>
-                                            </div>
+                                    {/* Bottom: Acciones */}
+                                    <div className="flex justify-between items-center gap-2 mt-1">
+                                        <button onClick={() => openDetails(p)} className="flex-1 py-2.5 text-slate-500 hover:text-[#ec4899] bg-slate-50 hover:bg-[#ec4899]/10 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5">
+                                            <Eye size={14} /> Detalles
+                                        </button>
+
+                                        {p.estado === 'vendido' && (
+                                            <button onClick={() => printThermalTicket(p)} className="flex-1 py-2.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5">
+                                                <Printer size={14} /> Ticket
+                                            </button>
                                         )}
-                                    </td>
 
-                                    <td className="p-5">
-                                        <div className="text-base font-black text-[#1e2a4a]">S/ {p.total?.toFixed(2)}</div>
-                                        <div className="text-[10px] font-bold text-[#3b82f6] mt-0.5 uppercase tracking-widest">{p.metodo_pago}</div>
-                                    </td>
-
-                                    <td className="p-5 text-center"><StatusBadge status={p.estado} /></td>
-
-                                    <td className="p-5">
-                                        <div className="flex justify-end items-center gap-2">
-                                            {/* COBRAR */}
-                                            {p.estado !== 'vendido' && p.estado !== 'anulado' && (
-                                                <button onClick={() => handleOpenPayment(p)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-1.5 transition-all shadow-sm">
-                                                    <Wallet size={14} /> Cobrar
-                                                </button>
-                                            )}
-
-                                            {/* ACCIONES DE IMPRESIÓN */}
-                                            {p.estado === 'vendido' && (
-                                                <>
-                                                    <button onClick={() => generateIndividualPDF(p)} className="p-2.5 text-slate-500 hover:text-blue-600 bg-white border border-slate-200 hover:border-blue-200 hover:bg-blue-50 rounded-xl transition-all shadow-sm" title="Descargar PDF A4"><FileText size={16} /></button>
-                                                    <button onClick={() => printThermalTicket(p)} className="p-2.5 text-slate-700 hover:text-white bg-slate-100 hover:bg-[#1e2a4a] border border-slate-200 hover:border-transparent rounded-xl transition-all shadow-sm" title="Reimprimir Ticket (80mm)"><Printer size={16} /></button>
-                                                </>
-                                            )}
-
-                                            {/* VER DETALLES */}
-                                            <button onClick={() => openDetails(p)} className="p-2.5 text-slate-500 hover:text-[#ec4899] bg-white border border-slate-200 hover:border-[#ec4899] hover:bg-[#ec4899]/5 rounded-xl transition-all shadow-sm" title="Auditar Ticket"><Eye size={16} /></button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                        {p.estado !== 'vendido' && p.estado !== 'anulado' && (
+                                            <button onClick={() => handleOpenPayment(p)} className="flex-[1.5] bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all shadow-sm">
+                                                <Wallet size={14} /> Cobrar
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
+                        </div>
 
-                {hasMore && (
-                    <div className="p-4 border-t border-slate-100 flex justify-center bg-white">
-                        <button onClick={() => fetchPedidos(false)} disabled={loadingMore} className="flex items-center gap-2 bg-[#f4f6f9] hover:bg-slate-100 px-6 py-3 rounded-2xl text-xs font-bold text-[#1e2a4a] hover:text-[#3b82f6] transition-all">
-                            {loadingMore ? <Loader2 className="animate-spin" size={14} /> : <ChevronDown size={14} />} Cargar ventas anteriores
+                        {/* === VISTA DESKTOP: TABLA CLÁSICA (Oculto en Móvil) === */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full text-left min-w-[1000px]">
+                                <thead>
+                                    <tr className="bg-[#f4f6f9]/50 text-[#1e2a4a] text-[10px] uppercase tracking-widest font-black border-b border-slate-100">
+                                        <th className="p-5">Ticket / Origen</th>
+                                        <th className="p-5">Cliente</th>
+                                        <th className="p-5">Logística</th>
+                                        <th className="p-5">Monto</th>
+                                        <th className="p-5 text-center">Estado Financiero</th>
+                                        <th className="p-5 text-right">Acciones de Venta</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {pedidos.map((p) => (
+                                        <tr key={p.id} id={`row-${p.id}`} className={`hover:bg-slate-50/80 transition-colors bg-white group ${p.estado === 'anulado' ? 'opacity-60' : ''}`}>
+                                            <td className="p-5">
+                                                <div className="font-black text-[#3b82f6] text-sm">#{p.ticket}</div>
+                                                <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{new Date(p.created_at).toLocaleString('es-PE')}</div>
+                                                <div className="mt-2">
+                                                    {p.turno_id ? (
+                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest"><Store size={10} /> POS Tienda</span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest"><Globe size={10} /> Web Online</span>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            <td className="p-5">
+                                                <div className="text-sm font-bold text-[#1e2a4a] line-clamp-1">{p.cliente_nombre}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5">Doc: <span className="font-bold text-slate-600">{p.cliente_dni_ruc || 'N/A'}</span></div>
+                                            </td>
+
+                                            <td className="p-5">
+                                                {p.metodo_entrega === 'pickup' ? (
+                                                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#ec4899] uppercase"><Store size={14} /> Recojo Tienda</div>
+                                                ) : (
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase"><Truck size={14} /> Envío</div>
+                                                        <div className="text-[10px] font-bold text-slate-400 uppercase mt-1 line-clamp-1">Vía: {p.agencia}</div>
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            <td className="p-5">
+                                                <div className="text-base font-black text-[#1e2a4a]">S/ {p.total?.toFixed(2)}</div>
+                                                <div className="text-[10px] font-bold text-[#3b82f6] mt-0.5 uppercase tracking-widest">{p.metodo_pago}</div>
+                                            </td>
+
+                                            <td className="p-5 text-center"><StatusBadge status={p.estado} /></td>
+
+                                            <td className="p-5">
+                                                <div className="flex justify-end items-center gap-2">
+                                                    {p.estado !== 'vendido' && p.estado !== 'anulado' && (
+                                                        <button onClick={() => handleOpenPayment(p)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-1.5 transition-all shadow-sm">
+                                                            <Wallet size={14} /> Cobrar
+                                                        </button>
+                                                    )}
+                                                    {p.estado === 'vendido' && (
+                                                        <>
+                                                            <button onClick={() => generateIndividualPDF(p)} className="p-2.5 text-slate-500 hover:text-blue-600 bg-white border border-slate-200 hover:border-blue-200 hover:bg-blue-50 rounded-xl transition-all shadow-sm" title="Descargar PDF A4"><FileText size={16} /></button>
+                                                            <button onClick={() => printThermalTicket(p)} className="p-2.5 text-slate-700 hover:text-white bg-slate-100 hover:bg-[#1e2a4a] border border-slate-200 hover:border-transparent rounded-xl transition-all shadow-sm" title="Reimprimir Ticket (80mm)"><Printer size={16} /></button>
+                                                        </>
+                                                    )}
+                                                    <button onClick={() => openDetails(p)} className="p-2.5 text-slate-500 hover:text-[#ec4899] bg-white border border-slate-200 hover:border-[#ec4899] hover:bg-[#ec4899]/5 rounded-xl transition-all shadow-sm" title="Auditar Ticket"><Eye size={16} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                )}
+
+                {/* BOTÓN CARGAR MÁS (Ambas vistas) */}
+                {/* BOTÓN CARGAR MÁS (Solo aparece si realmente hay más datos que traer) */}
+                {!loading && hasMore && pedidos.length > 0 && (
+                    <div className="p-6 border-t border-slate-100 flex justify-center bg-[#f4f6f9]/30">
+                        <button
+                            onClick={() => fetchPedidos(false)}
+                            disabled={loadingMore}
+                            className="group flex items-center justify-center gap-3 bg-white border border-slate-200 hover:border-[#3b82f6] px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-[#1e2a4a] hover:text-[#3b82f6] transition-all shadow-sm hover:shadow-md w-full sm:w-auto active:scale-95"
+                        >
+                            {loadingMore ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={18} />
+                                    <span>Buscando registros...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <ChevronDown size={18} className="group-hover:translate-y-0.5 transition-transform" />
+                                    <span>Mostrar ventas anteriores</span>
+                                </>
+                            )}
                         </button>
+                    </div>
+                )}
+
+                {/* INDICADOR DE FINAL DE LISTA (Opcional, para que el usuario sepa que ya cargó todo) */}
+                {!hasMore && pedidos.length > 0 && !loading && (
+                    <div className="p-8 text-center bg-[#f4f6f9]/10 border-t border-slate-50">
+                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
+                            — Has llegado al final del historial —
+                        </p>
                     </div>
                 )}
             </div>
 
             {/* MODALES DE PAGO Y DETALLE */}
             {isPaymentModalOpen && orderToSell && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
+                    <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:zoom-in duration-300">
                         <div className="text-center mb-6">
                             <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><Wallet size={28} /></div>
                             <h3 className="text-2xl font-black text-[#1e2a4a] tracking-tight">Cobrar Ticket #{orderToSell.ticket}</h3>
-                            <p className="text-slate-500 text-sm mt-2">Registra el ingreso del dinero para actualizar la caja y el Kardex.</p>
+                            <p className="text-slate-500 text-xs sm:text-sm mt-2">Registra el ingreso del dinero para actualizar la caja y el Kardex.</p>
                         </div>
 
                         <div className="space-y-3">
@@ -558,24 +652,27 @@ export default function OrdersAdmin() {
                             </button>
                         </div>
 
-                        <button onClick={() => setIsPaymentModalOpen(false)} className="w-full mt-6 py-3 text-slate-400 font-bold text-sm hover:text-[#ec4899] bg-white rounded-2xl transition-colors">Cancelar</button>
+                        <button onClick={() => setIsPaymentModalOpen(false)} className="w-full mt-6 py-4 text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-[#ec4899] bg-slate-50 sm:bg-white rounded-2xl transition-colors">Cancelar</button>
                     </div>
                 </div>
             )}
 
             {/* MODAL DETALLES */}
             {isDetailsOpen && selectedOrder && (
-                <div ref={overlayRef} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div ref={modalRef} className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-6 sm:p-8 border-b border-slate-100 flex justify-between items-center bg-[#f4f6f9]/50">
+                <div ref={overlayRef} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
+                    <div ref={modalRef} className="bg-white w-full max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
+                        <div className="w-full flex justify-center pt-3 pb-1 sm:hidden"><div className="w-12 h-1.5 bg-slate-200 rounded-full"></div></div>
+
+                        <div className="p-5 sm:p-8 border-b border-slate-100 flex justify-between items-center bg-[#f4f6f9]/50">
                             <div>
-                                <h3 className="text-2xl font-black text-[#1e2a4a] flex items-center gap-3">Ticket #{selectedOrder.ticket} <StatusBadge status={selectedOrder.estado} /></h3>
-                                <p className="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">{new Date(selectedOrder.created_at).toLocaleString('es-PE')}</p>
+                                <h3 className="text-xl sm:text-2xl font-black text-[#1e2a4a] flex items-center gap-3">#{selectedOrder.ticket} <StatusBadge status={selectedOrder.estado} /></h3>
+                                <p className="text-[10px] sm:text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">{new Date(selectedOrder.created_at).toLocaleString('es-PE')}</p>
                             </div>
-                            <button onClick={closeDetails} className="p-2 text-slate-400 hover:text-[#ec4899] hover:bg-[#ec4899]/10 rounded-full transition-colors"><X size={20} /></button>
+                            <button onClick={closeDetails} className="p-2 text-slate-400 hover:text-[#ec4899] hover:bg-[#ec4899]/10 rounded-full transition-colors hidden sm:block"><X size={20} /></button>
                         </div>
 
-                        <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 bg-white">
+                        <div className="p-5 sm:p-8 overflow-y-auto space-y-6 flex-1 bg-white hide-scrollbar">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="bg-[#f4f6f9] p-5 rounded-2xl">
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 mb-2"><User size={14} className="text-[#3b82f6]" /> Cliente</h4>
@@ -611,15 +708,14 @@ export default function OrdersAdmin() {
                             </div>
                         </div>
 
-                        <div className="p-6 sm:p-8 border-t border-slate-100 bg-[#f4f6f9]/50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            {/* BOTÓN DE ANULAR EN MODAL (SEGURO) */}
+                        <div className="p-5 sm:p-8 border-t border-slate-100 bg-[#f4f6f9]/50 flex flex-col sm:flex-row justify-between items-center gap-4">
                             {(role === 'admin' || role === 'supervisor') && selectedOrder.estado !== 'anulado' && (
-                                <button onClick={() => procesarAnulacion(selectedOrder)} disabled={isAnuling} className="text-red-500 hover:text-white border-2 border-red-200 hover:bg-red-500 hover:border-transparent px-5 py-3 rounded-2xl text-xs font-black tracking-widest uppercase transition-all flex items-center justify-center gap-2">
+                                <button onClick={() => procesarAnulacion(selectedOrder)} disabled={isAnuling} className="w-full sm:w-auto text-red-500 hover:text-white border-2 border-red-200 hover:bg-red-500 hover:border-transparent px-5 py-3.5 sm:py-3 rounded-2xl text-xs font-black tracking-widest uppercase transition-all flex items-center justify-center gap-2">
                                     {isAnuling ? <Loader2 className="animate-spin" size={14} /> : <XCircle size={16} />} Anular Venta
                                 </button>
                             )}
-                            <div className="flex items-center gap-4 ml-auto bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100">
-                                <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Cobrado</span>
+                            <div className="flex items-center justify-between w-full sm:w-auto gap-6 sm:ml-auto bg-white px-5 py-4 sm:py-3 rounded-2xl shadow-sm border border-slate-100">
+                                <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total</span>
                                 <span className="text-2xl font-black text-[#1e2a4a] tracking-tight">S/ {selectedOrder.total?.toFixed(2)}</span>
                             </div>
                         </div>

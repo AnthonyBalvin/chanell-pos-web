@@ -148,7 +148,7 @@ export default function PedidosWebAdmin() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 sm:p-8 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
                 <div>
                     <h2 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
-                        <Globe className="text-[#3b82f6]" size={32} /> 
+                        <Globe className="text-[#3b82f6]" size={32} />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#1e2a4a] to-[#3b82f6]">Pedidos Web (Leads)</span>
                     </h2>
                     <p className="text-slate-500 text-sm mt-1">Filtra, contacta y cierra las ventas de tu Landing Page.</p>
