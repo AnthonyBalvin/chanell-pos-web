@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { UserPlus, Users, Edit, Trash2, X, Calendar, TrendingUp, Receipt, Package, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
-import gsap from 'gsap';
+import { UserPlus, Users, Edit, Trash2, X, Calendar, TrendingUp, Receipt, Package, ShieldCheck, CheckCircle2, Lock, Eye, EyeOff } from 'lucide-react'; import gsap from 'gsap';
 import { useChanellUI } from '../context/UIContext';
 
 export default function UsersAdmin() {
@@ -17,6 +16,7 @@ export default function UsersAdmin() {
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newUser, setNewUser] = useState({ nombre: '', email: '', password: '', rol: 'vendedor' });
+    const [showPassword, setShowPassword] = useState(false);
     const addModalRef = useRef(null);
     const addOverlayRef = useRef(null);
 
@@ -386,7 +386,23 @@ export default function UsersAdmin() {
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Contraseña Temporal</label>
-                                <input type="password" placeholder="Mínimo 6 caracteres" required minLength={6} className="w-full bg-[#f4f6f9] border border-transparent text-[#1e2a4a] font-medium p-4 rounded-2xl outline-none focus:bg-white focus:border-[#ec4899] transition-all" onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="Mínimo 6 caracteres"
+                                        required
+                                        minLength={6}
+                                        className="w-full bg-[#f4f6f9] border border-transparent text-[#1e2a4a] font-medium p-4 pr-12 rounded-2xl outline-none focus:bg-white focus:border-[#ec4899] transition-all"
+                                        onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#ec4899] transition-colors"
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nivel de Acceso (Rol)</label>

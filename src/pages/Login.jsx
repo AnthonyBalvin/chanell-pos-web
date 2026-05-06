@@ -47,7 +47,7 @@ export default function Login() {
 
         if (error) {
             if (error.message.includes("Email not confirmed")) {
-                notify("⚠️ Acción Requerida: Cuenta no verificada. Por favor revisa tu bandeja de entrada o Spam.", "info");
+                notify("Acción Requerida: Cuenta no verificada. Por favor revisa tu bandeja de entrada o Spam.", "info");
             } else {
                 notify("Error al iniciar sesión: Credenciales incorrectas.", "error");
             }

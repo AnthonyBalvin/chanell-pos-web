@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { DollarSign, TrendingUp, CreditCard, Package, Percent, Wallet, ArrowRight, AlertTriangle, CheckCircle2, Calendar, Banknote, Landmark, Smartphone, BadgeDollarSign } from 'lucide-react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Link } from 'react-router-dom';
 
 export default function DashboardAdmin() {
     const { role } = useAuth();
@@ -20,6 +19,7 @@ export default function DashboardAdmin() {
     const [totalVentasRPC, setTotalVentasRPC] = useState(0);
     const [gananciaNetaRPC, setGananciaNetaRPC] = useState(0);
     const [totalPedidosRPC, setTotalPedidosRPC] = useState(0);
+    const [pagosMapRPC, setPagosMapRPC] = useState({}); // NUEVO: Mapa de pagos desde el servidor
 
     const [periodo, setPeriodo] = useState('mes');
 
@@ -52,19 +52,28 @@ export default function DashboardAdmin() {
             const isoStartDate = startDate.toISOString();
             const isoEndDate = new Date().toISOString();
 
-            // 1. LLAMADA AL MOTOR RPC (Para asegurar exactitud en los totales)
-            const { data: statsData } = await supabase.rpc('get_dashboard_stats', {
-                p_start_date: isoStartDate,
-                p_end_date: isoEndDate
-            });
+            // 1. LLAMADAS AL MOTOR RPC (Exactitud absoluta en dinero)
+            const [resStats, resPagos] = await Promise.all([
+                supabase.rpc('get_dashboard_stats', { p_start_date: isoStartDate, p_end_date: isoEndDate }),
+                supabase.rpc('get_resumen_pagos', { p_start_date: isoStartDate, p_end_date: isoEndDate })
+            ]);
 
-            if (statsData && statsData[0]) {
-                setTotalVentasRPC(Number(statsData[0].total_ventas));
-                setGananciaNetaRPC(Number(statsData[0].total_ganancia));
-                setTotalPedidosRPC(Number(statsData[0].num_pedidos));
+            if (resStats.data && resStats.data[0]) {
+                setTotalVentasRPC(Number(resStats.data[0].total_ventas));
+                setGananciaNetaRPC(Number(resStats.data[0].total_ganancia));
+                setTotalPedidosRPC(Number(resStats.data[0].num_pedidos));
             }
 
-            // 2. CONSULTAS PARA GRÁFICOS Y DETALLES
+            // Mapeamos los pagos que vienen del servidor
+            const newPagosMap = {};
+            if (resPagos.data) {
+                resPagos.data.forEach(item => {
+                    newPagosMap[item.metodo] = Number(item.total_monto);
+                });
+            }
+            setPagosMapRPC(newPagosMap);
+
+            // 2. CONSULTAS PARA GRÁFICOS Y TOP 5
             const { data: dataPedidos } = await supabase
                 .from('pedidos')
                 .select('id, total, estado, items, created_at, metodo_pago, ticket, cliente_nombre')
@@ -98,12 +107,9 @@ export default function DashboardAdmin() {
     // --- LÓGICA DE CÁLCULOS PARA GRÁFICOS Y TOP 5 ---
     const ventasCompletadas = pedidos.filter(p => p.estado === 'vendido' || p.estado === 'enviado');
     const productosMap = {};
-    const pagosMap = {};
 
+    // El mapa de productos se sigue calculando localmente
     ventasCompletadas.forEach(p => {
-        const metodo = p.metodo_pago || 'otro';
-        pagosMap[metodo] = (pagosMap[metodo] || 0) + (p.total || 0);
-
         if (p.items && Array.isArray(p.items)) {
             p.items.forEach(item => {
                 const prod = item.product;
@@ -121,34 +127,37 @@ export default function DashboardAdmin() {
     });
 
     const totalGastosOperativos = gastos.reduce((sum, g) => sum + (g.monto || 0), 0);
-    // Usamos el valor del RPC para la ganancia neta, restándole los gastos operativos locales
     const gananciaFinal = gananciaNetaRPC - totalGastosOperativos;
     const margenBeneficio = totalVentasRPC > 0 ? (gananciaFinal / totalVentasRPC) * 100 : 0;
     const ticketPromedio = totalPedidosRPC > 0 ? totalVentasRPC / totalPedidosRPC : 0;
 
     const topProductos = Object.values(productosMap).sort((a, b) => b.cantidad - a.cantidad).slice(0, 5);
     const COLORS = ['#3b82f6', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6'];
-    const datosPagos = Object.keys(pagosMap).map(key => ({
+
+    // Gráfico de Dona: Ahora lee del servidor
+    const datosPagos = Object.keys(pagosMapRPC).map(key => ({
         name: key.toUpperCase(),
-        value: pagosMap[key]
+        value: pagosMapRPC[key]
     })).sort((a, b) => b.value - a.value);
 
-    // --- GRAN TOTAL: desglose por método de pago ---
+    // --- GRAN TOTAL: desglose por método de pago usando datos del RPC ---
     const metodosConfig = [
         { keys: ['efectivo'], label: 'Efectivo', icon: Banknote, color: '#10b981', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
         { keys: ['banco', 'transferencia'], label: 'Transferencia', icon: Landmark, color: '#3b82f6', bg: 'bg-blue-50', text: 'text-[#3b82f6]', border: 'border-blue-100' },
         { keys: ['yape', 'yape_pos', 'plin'], label: 'Yape / Plin', icon: Smartphone, color: '#8b5cf6', bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100' },
         { keys: ['tarjeta', 'pos', 'card'], label: 'Tarjeta / POS', icon: CreditCard, color: '#f59e0b', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
     ];
+
     const subtotales = metodosConfig.map(m => ({
         ...m,
-        total: m.keys.reduce((sum, k) => sum + (pagosMap[k] || pagosMap[k.toUpperCase()] || 0), 0)
+        total: m.keys.reduce((sum, k) => sum + (pagosMapRPC[k] || 0), 0)
     }));
-    // Cualquier método que no haya caído en las categorías anteriores
+
     const todasLasKeys = metodosConfig.flatMap(m => m.keys);
-    const otrosTotal = Object.entries(pagosMap)
-        .filter(([k]) => !todasLasKeys.includes(k.toLowerCase()))
+    const otrosTotal = Object.entries(pagosMapRPC)
+        .filter(([k]) => !todasLasKeys.includes(k))
         .reduce((sum, [, v]) => sum + v, 0);
+
     const granTotal = subtotales.reduce((sum, m) => sum + m.total, 0) + otrosTotal;
 
     const procesarEvolucion = () => {
