@@ -9,6 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'inline', // <-- OBLIGATORIO PARA MÓVIL: Fuerza el registro del Service Worker en el HTML
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'Chanell Tecnología POS',
@@ -17,6 +18,8 @@ export default defineConfig({
         theme_color: '#0B1F3B',
         background_color: '#0B1F3B',
         display: 'standalone',
+        start_url: '/', // <-- OBLIGATORIO PARA MÓVIL: Define la página de inicio
+        scope: '/',     // <-- OBLIGATORIO PARA MÓVIL: Define el alcance de la app
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -30,7 +33,6 @@ export default defineConfig({
           }
         ]
       },
-      // BLINDAJE DOBLE: Forzamos el límite de 5MB en cualquier estrategia de compilación
       workbox: {
         maximumFileSizeToCacheInBytes: 5000000
       },
