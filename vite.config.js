@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(), // <-- ¡Esta es la línea vital que te había borrado!
+    tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
@@ -29,7 +29,14 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
+      },
+      // ESTO ES LO NUEVO: Aumentamos el límite de caché a 5MB
+      workbox: {
+        maximumFileSizeToCacheInBytes: 5000000
       }
     })
-  ]
+  ],
+  build: {
+    cssMinify: 'esbuild'
+  }
 })
