@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   plugins: [
     react(),
+    tailwindcss(), // <-- ¡Esta es la línea vital que te había borrado!
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
@@ -29,13 +31,5 @@ export default defineConfig({
         ]
       }
     })
-  ],
-  // AGREGA ESTA SECCIÓN PARA ARREGLAR EL ERROR DE VERCEL
-  css: {
-    transformer: 'postcss',
-    lightningcss: false
-  },
-  build: {
-    cssMinify: 'esbuild' // Cambiamos el minificador a uno más compatible
-  }
+  ]
 })
