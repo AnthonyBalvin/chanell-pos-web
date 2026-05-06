@@ -29,5 +29,13 @@ export default defineConfig({
         ]
       }
     })
-  ]
+  ],
+  // AGREGA ESTA SECCIÓN PARA ARREGLAR EL ERROR DE VERCEL
+  css: {
+    transformer: 'postcss',
+    lightningcss: false
+  },
+  build: {
+    cssMinify: 'esbuild' // Cambiamos el minificador a uno más compatible
+  }
 })
