@@ -30,8 +30,11 @@ export default defineConfig({
           }
         ]
       },
-      // ESTO ES LO NUEVO: Aumentamos el límite de caché a 5MB
+      // BLINDAJE DOBLE: Forzamos el límite de 5MB en cualquier estrategia de compilación
       workbox: {
+        maximumFileSizeToCacheInBytes: 5000000
+      },
+      injectManifest: {
         maximumFileSizeToCacheInBytes: 5000000
       }
     })
