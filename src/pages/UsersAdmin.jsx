@@ -86,10 +86,20 @@ export default function UsersAdmin() {
             return;
         }
 
-        const tieneHistorial = pedidos.some(p => p.vendedor_id === user.id);
+        // --- NUEVA VERIFICACIÓN DE HISTORIAL DE CAJA ---
+        setLoading(true);
+        // Buscamos si el usuario alguna vez abrió la caja, no solo si hizo ventas
+        const { data: turnosHistorial } = await supabase.from('turnos_caja').select('id').eq('usuario_id', user.id).limit(1);
+        setLoading(false);
+
+        const tieneVentas = pedidos.some(p => p.vendedor_id === user.id);
+        const tieneTurnos = turnosHistorial && turnosHistorial.length > 0;
+        const tieneHistorial = tieneVentas || tieneTurnos;
 
         if (tieneHistorial) {
-            const isConfirmed = await confirm("Suspender Acceso", `⚠️ ${user.nombre} ya tiene tickets de venta en su historial.\n\nPor seguridad contable no se puede borrar de raíz. ¿Deseas SUSPENDER su acceso para que no pueda entrar al sistema?`, true);
+            const motivo = tieneVentas ? "tickets de venta" : "turnos de caja registrados";
+            const isConfirmed = await confirm("Suspender Acceso", `⚠️ ${user.nombre} ya tiene ${motivo} en su historial.\n\nPor seguridad contable no se puede borrar de raíz. ¿Deseas SUSPENDER su acceso para que no pueda entrar al sistema?`, true);
+
             if (isConfirmed) {
                 setLoading(true);
                 const { error } = await supabase.from('perfiles').update({ estado: 'inactivo' }).eq('id', user.id);
@@ -101,7 +111,7 @@ export default function UsersAdmin() {
                 setLoading(false);
             }
         } else {
-            const isConfirmed = await confirm("Eliminar Definitivamente", `¿Estás 100% seguro de eliminar definitivamente a ${user.nombre}?\n\nAl no tener historial de ventas, su perfil se borrará limpiamente del sistema.`, true);
+            const isConfirmed = await confirm("Eliminar Definitivamente", `¿Estás 100% seguro de eliminar definitivamente a ${user.nombre}?\n\nAl no tener historial de ventas ni turnos, su perfil se borrará limpiamente del sistema.`, true);
             if (isConfirmed) {
                 setLoading(true);
                 const { error } = await supabase.rpc('eliminar_usuario_admin', {

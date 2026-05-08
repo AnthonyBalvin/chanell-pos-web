@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { uiManager } from '../context/UIContext';
 
-// Creamos el contexto
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
@@ -9,22 +9,20 @@ export function AuthProvider({ children }) {
     const [role, setRole] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const isKickingRef = useRef(false);
+
     useEffect(() => {
-        // 1. Revisar si ya hay alguien logueado al abrir la página
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
-                setUser(session.user);
-                fetchProfileRole(session.user.id);
+                verificarAcceso(session.user);
             } else {
                 setLoading(false);
             }
         });
 
-        // 2. Quedarse escuchando si alguien hace Login o Logout
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
-                setUser(session.user);
-                fetchProfileRole(session.user.id);
+                verificarAcceso(session.user);
             } else {
                 setUser(null);
                 setRole(null);
@@ -35,19 +33,37 @@ export function AuthProvider({ children }) {
         return () => subscription.unsubscribe();
     }, []);
 
-    // Función para ir a buscar si es admin o vendedor a la tabla "perfiles"
-    const fetchProfileRole = async (userId) => {
+    const verificarAcceso = async (authUser) => {
         const { data, error } = await supabase
             .from('perfiles')
-            .select('rol')
-            .eq('id', userId)
+            .select('rol, estado')
+            .eq('id', authUser.id)
             .single();
 
         if (data) {
-            setRole(data.rol);
+            if (data.estado === 'inactivo') {
+                // EL CANDADO SE REVISA Y SE CIERRA AQUÍ: 
+                // Si otro hilo ya lanzó la notificación hace 1 milisegundo, los demás se cancelan.
+                if (isKickingRef.current) return;
+                isKickingRef.current = true;
+
+                uiManager.notify("ACCESO DENEGADO: Tu cuenta ha sido suspendida. Contacta al administrador.", "error");
+
+                await supabase.auth.signOut();
+                setUser(null);
+                setRole(null);
+
+                setTimeout(() => { isKickingRef.current = false; }, 2000);
+            } else {
+                setUser(authUser);
+                setRole(data.rol);
+                isKickingRef.current = false;
+            }
         } else {
-            console.error("Error obteniendo rol:", error);
+            console.error("Error obteniendo perfil:", error);
+            setUser(authUser);
         }
+
         setLoading(false);
     };
 
@@ -58,5 +74,4 @@ export function AuthProvider({ children }) {
     );
 }
 
-// Un hook personalizado para usarlo fácilmente en otras pantallas
 export const useAuth = () => useContext(AuthContext);
