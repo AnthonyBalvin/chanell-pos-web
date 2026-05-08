@@ -283,6 +283,14 @@ export default function Login() {
 
                 </div>
             </div>
+
+            {/* ESTILO GLOBAL PARA OCULTAR EL OJO NATIVO DE LOS NAVEGADORES */}
+            <style jsx="true">{`
+                input[type="password"]::-ms-reveal,
+                input[type="password"]::-ms-clear {
+                    display: none;
+                }
+            `}</style>
         </div>
     );
 }

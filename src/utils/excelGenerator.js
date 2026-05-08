@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx-js-style';
+import { saveFileNatively } from './tauriFileSaver'; // Importamos el puente nativo de Tauri
 
 // ─── PALETA CHANELL TECNOLOGÍA ────────────────────────────────────────────────
 const C = {
@@ -169,10 +170,24 @@ const applySheetMeta = (ws, wscols, totalDataRows, ncols, hasTotal) => {
     ws['!sheetView'] = [{ showGridLines: false }];
 };
 
+// ─── HELPER AUXILIAR DE REESCRITURA EXCEL EN MEMORIA PARA TAURI ───────────────
+const procesarYGuardarExcel = async (workbook, defaultFileName) => {
+    // Convierte el libro de Excel en datos binarios (ArrayBuffer)
+    const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+
+    // Dispara la ventana nativa de Tauri
+    const savedNatively = await saveFileNatively(excelBuffer, defaultFileName, 'xlsx');
+
+    // Si falla o estamos en Vercel (web), usamos la descarga normal
+    if (!savedNatively) {
+        XLSX.writeFile(workbook, defaultFileName);
+    }
+};
+
 // ══════════════════════════════════════════════════════════════════════════════
 // EXPORT 1 — VENTAS
 // ══════════════════════════════════════════════════════════════════════════════
-export const exportarVentasExcel = (data) => {
+export const exportarVentasExcel = async (data) => {
     const workbook = XLSX.utils.book_new();
 
     const headers = ['Ticket', 'Fecha', 'Cliente', 'DNI/RUC',
@@ -216,13 +231,13 @@ export const exportarVentasExcel = (data) => {
 
     XLSX.utils.book_append_sheet(workbook, ws, 'Historial_Ventas');
     const fechaStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `Reporte_Ventas_Chanell_${fechaStr}.xlsx`);
+    await procesarYGuardarExcel(workbook, `Reporte_Ventas_Chanell_${fechaStr}.xlsx`);
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EXPORT 2 — KARDEX
 // ══════════════════════════════════════════════════════════════════════════════
-export const exportarKardexExcel = (data) => {
+export const exportarKardexExcel = async (data) => {
     const workbook = XLSX.utils.book_new();
 
     const headers = ['Fecha', 'Hora', 'Producto', 'Tipo Movimiento',
@@ -263,13 +278,13 @@ export const exportarKardexExcel = (data) => {
 
     XLSX.utils.book_append_sheet(workbook, ws, 'Kardex');
     const fechaStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `Kardex_Auditoria_${fechaStr}.xlsx`);
+    await procesarYGuardarExcel(workbook, `Kardex_Auditoria_${fechaStr}.xlsx`);
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EXPORT 3 — COMPRAS
 // ══════════════════════════════════════════════════════════════════════════════
-export const exportarComprasExcel = (data) => {
+export const exportarComprasExcel = async (data) => {
     const workbook = XLSX.utils.book_new();
 
     const headers = ['Código OC', 'Fecha', 'Proveedor',
@@ -313,13 +328,13 @@ export const exportarComprasExcel = (data) => {
 
     XLSX.utils.book_append_sheet(workbook, ws, 'Cuentas_Por_Pagar');
     const fechaStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `Reporte_Compras_${fechaStr}.xlsx`);
+    await procesarYGuardarExcel(workbook, `Reporte_Compras_${fechaStr}.xlsx`);
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EXPORT 4 — REPORTE DE VENTAS DIARIAS (FINANCIERO)
 // ══════════════════════════════════════════════════════════════════════════════
-export const exportarVentasDiariasExcel = (data, periodoTexto) => {
+export const exportarVentasDiariasExcel = async (data, periodoTexto) => {
     const workbook = XLSX.utils.book_new();
 
     const headers = ['Fecha', 'N° Pedidos', 'Ingreso Bruto (S/)', 'Costo Total (S/)', 'Ganancia Neta (S/)'];
@@ -363,13 +378,13 @@ export const exportarVentasDiariasExcel = (data, periodoTexto) => {
 
 
     XLSX.utils.book_append_sheet(workbook, ws, 'Ventas_Diarias');
-    XLSX.writeFile(workbook, `Ventas_Diarias_${periodoTexto}.xlsx`);
+    await procesarYGuardarExcel(workbook, `Ventas_Diarias_${periodoTexto}.xlsx`);
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EXPORT 5 — REPORTE DE RANKING DE PRODUCTOS (FINANCIERO)
 // ══════════════════════════════════════════════════════════════════════════════
-export const exportarRankingProductosExcel = (data, periodoTexto) => {
+export const exportarRankingProductosExcel = async (data, periodoTexto) => {
     const workbook = XLSX.utils.book_new();
 
     const headers = ['Producto', 'Unidades Vendidas', 'Ingreso Bruto (S/)', 'Costo Total (S/)', 'Ganancia Neta (S/)', 'Margen Real (%)'];
@@ -402,13 +417,13 @@ export const exportarRankingProductosExcel = (data, periodoTexto) => {
     applySheetMeta(ws, [{ wch: 40 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }], dataRows.length, NCOLS, false);
 
     XLSX.utils.book_append_sheet(workbook, ws, 'Ranking_Productos');
-    XLSX.writeFile(workbook, `Ranking_Productos_${periodoTexto}.xlsx`);
+    await procesarYGuardarExcel(workbook, `Ranking_Productos_${periodoTexto}.xlsx`);
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EXPORT 6 — REPORTES DE RENDIMIENTO POR VENDEDOR (FINANCIERO)
 // ══════════════════════════════════════════════════════════════════════════════
-export const exportarVendedorRankingExcel = (data, periodoTexto) => {
+export const exportarVendedorRankingExcel = async (data, periodoTexto) => {
     const workbook = XLSX.utils.book_new();
 
     // Ajustamos las columnas a lo que devuelve el RPC (Nombre, Pedidos, Ingresos, Ticket Promedio)
@@ -446,13 +461,13 @@ export const exportarVendedorRankingExcel = (data, periodoTexto) => {
     applySheetMeta(ws, [{ wch: 30 }, { wch: 15 }, { wch: 25 }, { wch: 25 }], dataRows.length, NCOLS, true);
 
     XLSX.utils.book_append_sheet(workbook, ws, 'Ranking_Vendedores');
-    XLSX.writeFile(workbook, `Ranking_Vendedores_${periodoTexto}.xlsx`);
+    await procesarYGuardarExcel(workbook, `Ranking_Vendedores_${periodoTexto}.xlsx`);
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EXPORT 7 — REPORTE DE MÉTODOS DE PAGO (FINANCIERO)
 // ══════════════════════════════════════════════════════════════════════════════
-export const exportarMetodosPagoExcel = (data, periodoTexto) => {
+export const exportarMetodosPagoExcel = async (data, periodoTexto) => {
     const workbook = XLSX.utils.book_new();
 
     // Ajustamos las columnas a lo que devuelve el RPC (Método, Pedidos, Ingresos)
@@ -490,5 +505,48 @@ export const exportarMetodosPagoExcel = (data, periodoTexto) => {
     applySheetMeta(ws, [{ wch: 25 }, { wch: 30 }, { wch: 30 }], dataRows.length, NCOLS, true);
 
     XLSX.utils.book_append_sheet(workbook, ws, 'Metodos_Pago');
-    XLSX.writeFile(workbook, `Metodos_Pago_${periodoTexto}.xlsx`);
+    await procesarYGuardarExcel(workbook, `Metodos_Pago_${periodoTexto}.xlsx`);
+};
+
+export const exportarCanalesExcel = async (data, periodoTexto) => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = ['Fecha', 'N° Tickets POS', 'N° Pedidos Web', 'Ingreso POS (S/)', 'Ingreso Web (S/)', 'Ingreso Total (S/)'];
+    const NCOLS = headers.length;
+
+    let granTotal = 0;
+
+    const dataRows = data.map((d, i) => {
+        const ingresoPos = Number(d.ingresos_caja || 0);
+        const ingresoWeb = Number(d.ingresos_web || 0);
+        const ingresoTotal = Number(d.ingresos_totales || 0);
+        granTotal += ingresoTotal;
+
+        const bg = i % 2 === 0 ? C.azulClaro : C.blanco;
+
+        return [
+            dataCell(new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-PE'), 'texto', bg),
+            dataCell(d.cant_caja || 0, 'numero', bg),
+            dataCell(d.cant_web || 0, 'numero', bg),
+            dataCell(ingresoPos, 'moneda', bg),
+            dataCell(ingresoWeb, 'moneda', bg),
+            dataCell(ingresoTotal, 'moneda', bg),
+        ];
+    });
+
+    const aoa = [
+        ...buildHeader(`REPORTE OMNICANAL - WEB VS LOCAL (${periodoTexto})`, NCOLS),
+        buildTableHeaders(headers),
+        ...dataRows,
+        Array(NCOLS).fill({ v: '' }),
+        buildTotalRow('INGRESO TOTAL OMNICANAL:', granTotal, NCOLS, NCOLS - 2, NCOLS - 1),
+        Array(NCOLS).fill({ v: '' }),
+        buildFooterRow(NCOLS),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    applySheetMeta(ws, [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 20 }], dataRows.length, NCOLS, true);
+
+    XLSX.utils.book_append_sheet(workbook, ws, 'Canales_Omnicanal');
+    await procesarYGuardarExcel(workbook, `Reporte_Omnicanal_${periodoTexto}.xlsx`);
 };

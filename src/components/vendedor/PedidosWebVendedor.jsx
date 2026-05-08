@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Globe, CheckCircle2, Store, MessageCircle, Wallet, RefreshCw, X, CreditCard } from 'lucide-react';
+import { openUrl } from '@tauri-apps/plugin-opener'; // IMPORTACIÓN NATIVA DE TAURI
+import { useChanellUI } from '../../context/UIContext'; // 1. IMPORTAMOS TU UIX
 
 export default function PedidosWebVendedor({ user, activeShift, onGoToTickets }) {
+    const { notify } = useChanellUI(); // 2. INSTANCIAMOS EL NOTIFICADOR
     const [pedidos, setPedidos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -11,7 +14,66 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
 
     const estados = ['pendiente', 'Contactando', 'En Preparación', 'Listo para Recojo', 'Enviado'];
 
-    useEffect(() => { fetchPedidosWeb(); }, []);
+    useEffect(() => {
+        fetchPedidosWeb();
+
+        // ==========================================
+        // MAGIA EN TIEMPO REAL (SUPABASE REALTIME)
+        // ==========================================
+        const channel = supabase
+            .channel('pedidos-web-channel')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'pedidos' },
+                (payload) => {
+                    const nuevoPedido = payload.new;
+                    // Si el pedido no tiene turno, es de la WEB
+                    if (nuevoPedido.turno_id === null) {
+                        lanzarNotificacionWindows(nuevoPedido);
+                        fetchPedidosWeb(); // Recargamos la lista silenciosamente
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
+    // ==========================================
+    // NOTIFICACIONES NATIVAS DE WINDOWS / WEB
+    // ==========================================
+    const lanzarNotificacionWindows = async (pedido) => {
+        const titulo = '🛒 ¡Nuevo Pedido Web!';
+        const cuerpo = `Cliente: ${pedido.cliente_nombre}\nTotal: S/ ${pedido.total?.toFixed(2)}`;
+
+        // Si estamos en la app de escritorio (Tauri)
+        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+            try {
+                const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
+                let permissionGranted = await isPermissionGranted();
+                if (!permissionGranted) {
+                    const permission = await requestPermission();
+                    permissionGranted = permission === 'granted';
+                }
+                if (permissionGranted) {
+                    sendNotification({ title: titulo, body: cuerpo });
+                }
+            } catch (err) {
+                console.error("Error con notificaciones Tauri:", err);
+            }
+        } else {
+            // Si estamos en Vercel (Chrome/Edge)
+            if (Notification.permission === 'granted') {
+                new Notification(titulo, { body: cuerpo });
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(perm => {
+                    if (perm === 'granted') new Notification(titulo, { body: cuerpo });
+                });
+            }
+        }
+    };
 
     const fetchPedidosWeb = async () => {
         setLoading(true);
@@ -31,8 +93,9 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
             const { error } = await supabase.from('pedidos').update({ estado: nuevoEstado }).eq('id', pedidoId);
             if (error) throw error;
             setPedidos(pedidos.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
+            notify("Estado actualizado correctamente.", "success"); // 3. REEMPLAZO DE ALERT
         } catch (error) {
-            alert("Error: " + error.message);
+            notify("Error: " + error.message, "error"); // 4. REEMPLAZO DE ALERT
         }
     };
 
@@ -74,20 +137,42 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
 
             if (rpcError) throw rpcError;
 
-            alert("¡Venta oficializada! El ticket ahora aparecerá en tu historial.");
+            notify("¡Venta oficializada! El ticket ahora aparecerá en tu historial.", "success"); // 5. REEMPLAZO DE ALERT
             setIsPaymentModalOpen(false);
             onGoToTickets();
         } catch (error) {
-            alert("Operación denegada: " + error.message);
+            notify("Operación denegada: " + error.message, "error"); // 6. REEMPLAZO DE ALERT
         } finally {
             setIsProcessingSale(false);
+        }
+    };
+
+    // ==========================================
+    // LÓGICA DE WHATSAPP HÍBRIDA
+    // ==========================================
+    const handleWhatsApp = async (telefono) => {
+        if (!telefono || telefono === 'N/A') return notify("Este cliente no proporcionó teléfono.", "warning"); // 7. REEMPLAZO DE ALERT
+
+        const cleanPhone = telefono.replace(/\D/g, '');
+        const finalPhone = cleanPhone.length === 9 ? `51${cleanPhone}` : cleanPhone;
+        const url = `https://wa.me/${finalPhone}`;
+
+        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+            try {
+                await openUrl(url);
+            } catch (err) {
+                console.error("Error al abrir WhatsApp en Tauri:", err);
+                notify("No se pudo abrir WhatsApp.", "error"); // 8. REEMPLAZO DE ALERT
+            }
+        } else {
+            window.open(url, '_blank');
         }
     };
 
     return (
         <div className="w-full space-y-6 pb-10 sm:px-4 animate-in fade-in duration-500">
 
-            {/* CABECERA (Adaptada para PWA) */}
+            {/* CABECERA */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 sm:p-8 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
                 <div className="w-full md:w-auto">
                     <h2 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
@@ -106,7 +191,7 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
                 </button>
             </div>
 
-            {/* LISTA DE PEDIDOS (Móvil: Cards / Desktop: Filas) */}
+            {/* LISTA DE PEDIDOS */}
             <div className="bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
                 {loading ? (
                     <div className="flex flex-col justify-center items-center h-48 text-slate-400 space-y-4">
@@ -137,7 +222,7 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
                                         </div>
                                         <p className="text-xs sm:text-sm font-bold text-slate-500 mt-0.5 mb-3 xl:mb-0">Cliente: {p.cliente_nombre}</p>
 
-                                        {/* Selector de Estado (Full width en celular) */}
+                                        {/* Selector de Estado */}
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
                                             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest hidden sm:block">Estado:</span>
                                             <select
@@ -155,14 +240,10 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
                                     </div>
                                 </div>
 
-                                {/* Botones de Acción (Side-by-side en celular) */}
+                                {/* Botones de Acción */}
                                 <div className="flex items-center gap-2 xl:gap-3 shrink-0 mt-2 xl:mt-0 border-t xl:border-none border-slate-100 pt-4 xl:pt-0 w-full xl:w-auto">
                                     <button
-                                        onClick={() => {
-                                            const phone = p.cliente_telefono?.replace(/\D/g, '');
-                                            if (phone) window.open(`https://wa.me/${phone.length === 9 ? '51' + phone : phone}`, '_blank');
-                                            else alert("Sin teléfono");
-                                        }}
+                                        onClick={() => handleWhatsApp(p.cliente_telefono)}
                                         className="flex-1 xl:flex-none flex items-center justify-center gap-2 p-3 sm:p-3.5 text-white bg-[#25D366] hover:bg-[#20bd5a] rounded-2xl transition-all shadow-sm font-bold text-xs uppercase tracking-widest"
                                         title="Contactar por WhatsApp"
                                     >
@@ -183,13 +264,11 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
                 )}
             </div>
 
-            {/* MODAL DE COBRO (Móvil: Bottom Sheet / Desktop: Modal Centrado) */}
+            {/* MODAL DE COBRO */}
             {isPaymentModalOpen && orderToSell && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
-                    {/* El modal se pega abajo en celulares (rounded-t-3xl) y se centra en PC (rounded-3xl) */}
                     <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:zoom-in duration-300">
 
-                        {/* Botón cerrar sutil arriba para celulares */}
                         <div className="w-full flex justify-center pt-3 sm:hidden">
                             <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
                         </div>
@@ -227,7 +306,6 @@ export default function PedidosWebVendedor({ user, activeShift, onGoToTickets })
                                 </div>
                             </button>
 
-                            {/* Botón cancelar visible solo en móvil */}
                             <button onClick={() => setIsPaymentModalOpen(false)} className="w-full mt-4 py-4 text-slate-400 font-black uppercase tracking-widest text-[10px] sm:hidden hover:text-[#1e2a4a] transition-colors rounded-2xl bg-slate-50 border border-slate-100">
                                 Cancelar Operación
                             </button>

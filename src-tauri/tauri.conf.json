@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "chanell-pos",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.chanelltecnologia.erp",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -13,10 +13,11 @@
     "windows": [
       {
         "title": "Chanell Tecnología",
-        "width": 800,
-        "height": 600,
+        "width": 1200,
+        "height": 800,
         "resizable": true,
-        "fullscreen": false
+        "decorations": false,
+        "transparent": true
       }
     ],
     "security": {
@@ -35,6 +36,14 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://chanell-pos.vercel.app/updater.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDREOUM4MkYzRUQ4NkMxOTIKUldTU3dZYnQ4NEtjVFVnR0FIQ0VOOTlFVWxqL2hCODBMTGRwYUk4ZTJNb1JkSFpxVnBLNHJkaGQK"
     }
   }
 }

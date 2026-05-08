@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, User, Tag, CheckCircle2, Package, Lock, Unlock, Wallet, X, ShieldAlert, UserCheck, FileText, Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { usePOS } from '../hooks/usePOS';
+import { useChanellUI } from '../context/UIContext';
 
 // UTILIDAD ENTERPRISE: Generar fondos de colores dinámicos para productos sin imagen
 const getGradientForName = (name) => {
@@ -21,6 +22,7 @@ export default function PosAdmin({ onCloseCaja }) {
     const navigate = useNavigate();
     const cartRef = useRef(null);
     const searchInputRef = useRef(null);
+    const { notify } = useChanellUI();
 
     const pos = usePOS(cartRef);
 
@@ -54,7 +56,10 @@ export default function PosAdmin({ onCloseCaja }) {
         try {
             await pos.abrirCaja(parseFloat(montoCaja) || 0);
             setMontoCaja('');
-        } catch (error) { alert("Error al abrir caja: " + error.message); }
+            notify("Caja abierta exitosamente", "success");
+        } catch (error) {
+            notify("Error al abrir caja: " + error.message, "error");
+        }
     };
 
     const handlePrepararCierre = async () => {
@@ -67,18 +72,24 @@ export default function PosAdmin({ onCloseCaja }) {
         e.preventDefault();
         try {
             await pos.cerrarCaja(parseFloat(montoCaja) || 0);
-            alert(`¡Caja cerrada correctamente!\n\nEl reporte ha sido enviado a gerencia.`);
+            notify("¡Caja cerrada correctamente! Reporte enviado a gerencia.", "success"); // <-- NUEVO
             setIsTurnoModalOpen(false);
-        } catch (error) { alert("Error al cerrar caja: " + error.message); }
+        } catch (error) {
+            notify("Error al cerrar caja: " + error.message, "error"); // <-- NUEVO
+        }
     };
 
     const handleRegistrarGasto = async (e) => {
         e.preventDefault();
         try {
             await pos.registrarGasto(gastoDesc, parseFloat(gastoMonto));
-            alert("Gasto registrado exitosamente.");
-            setIsGastoModalOpen(false); setGastoDesc(''); setGastoMonto('');
-        } catch (error) { alert("Error: " + error.message); }
+            notify("Gasto registrado exitosamente.", "success"); // <-- NUEVO
+            setIsGastoModalOpen(false);
+            setGastoDesc('');
+            setGastoMonto('');
+        } catch (error) {
+            notify("Error: " + error.message, "error"); // <-- NUEVO
+        }
     };
 
     if (pos.loadingTurno) return <div className="min-h-screen flex items-center justify-center text-gray-400">Verificando estado de caja...</div>;

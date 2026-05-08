@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Package, Truck, Eye, Search, X, MapPin, User, Store, Filter, Calendar, Tag, Download, FileText, Globe, XCircle, Loader2, TrendingUp, Clock, AlertCircle, Wallet, Printer, ChevronDown, CheckCircle2, CreditCard, FileSpreadsheet } from 'lucide-react';
+import { Package, Truck, Eye, Search, X, MapPin, User, Store, Filter, Calendar, Tag, Download, FileText, Globe, XCircle, Loader2, TrendingUp, Clock, AlertCircle, Wallet, Printer, ChevronDown, CheckCircle2, CreditCard, FileSpreadsheet, MessageCircle } from 'lucide-react';
 import gsap from 'gsap';
 import { generateSummaryPDF, generateIndividualPDF, printThermalTicket } from '../utils/pdfGenerator';
 import { exportarVentasExcel } from '../utils/excelGenerator';
 import { useChanellUI } from '../context/UIContext';
+import { openUrl } from '@tauri-apps/plugin-opener'; // Puente nativo para WhatsApp
 
 export default function OrdersAdmin() {
     const { notify, confirm } = useChanellUI();
@@ -197,7 +198,7 @@ export default function OrdersAdmin() {
 
         const confirmacion = await confirm(
             "Oficializar Cobro",
-            `💰 CONFIRMACIÓN DE COBRO\n\n¿Confirmas que ya recibiste S/ ${pedido.total?.toFixed(2)} mediante ${metodoAmigable}?\n\n⚠️ Al aceptar, se sumará el dinero a la caja y se descontará el stock del Kardex irreversiblemente.`,
+            `CONFIRMACIÓN DE COBRO\n\n¿Confirmas que ya recibiste S/ ${pedido.total?.toFixed(2)} mediante ${metodoAmigable}?\n\n Al aceptar, se sumará el dinero a la caja y se descontará el stock del Kardex irreversiblemente.`,
             true
         );
 
@@ -309,6 +310,28 @@ export default function OrdersAdmin() {
         const { data, error } = await query;
         if (!error && data) generateSummaryPDF(data);
         else notify("Error al generar el reporte completo.", "error");
+    };
+
+    // ==========================================
+    // LÓGICA DE WHATSAPP HÍBRIDA (Tauri / Web)
+    // ==========================================
+    const handleWhatsApp = async (telefono) => {
+        if (!telefono || telefono === 'N/A') return notify("Este cliente no proporcionó un teléfono de contacto.", "warning");
+
+        const cleanPhone = telefono.replace(/\D/g, '');
+        const finalPhone = cleanPhone.length === 9 ? `51${cleanPhone}` : cleanPhone;
+        const url = `https://wa.me/${finalPhone}`;
+
+        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+            try {
+                await openUrl(url);
+            } catch (err) {
+                console.error("Error al abrir WhatsApp en Tauri:", err);
+                notify("No se pudo abrir WhatsApp automáticamente.", "error");
+            }
+        } else {
+            window.open(url, '_blank');
+        }
     };
 
     return (
@@ -490,9 +513,14 @@ export default function OrdersAdmin() {
                                         </button>
 
                                         {p.estado === 'vendido' && (
-                                            <button onClick={() => printThermalTicket(p)} className="flex-1 py-2.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5">
-                                                <Printer size={14} /> Ticket
-                                            </button>
+                                            <>
+                                                <button onClick={() => handleWhatsApp(p.cliente_telefono)} className="p-2.5 text-white bg-[#25D366] hover:bg-[#20bd5a] rounded-xl transition-all shadow-sm flex items-center justify-center" title="WhatsApp">
+                                                    <MessageCircle size={14} />
+                                                </button>
+                                                <button onClick={() => printThermalTicket(p)} className="flex-1 py-2.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5">
+                                                    <Printer size={14} /> Ticket
+                                                </button>
+                                            </>
                                         )}
 
                                         {p.estado !== 'vendido' && p.estado !== 'anulado' && (
@@ -565,6 +593,7 @@ export default function OrdersAdmin() {
                                                     )}
                                                     {p.estado === 'vendido' && (
                                                         <>
+                                                            <button onClick={() => handleWhatsApp(p.cliente_telefono)} className="p-2.5 text-slate-500 hover:text-white bg-white border border-slate-200 hover:border-[#25D366] hover:bg-[#25D366] rounded-xl transition-all shadow-sm" title="Enviar WhatsApp"><MessageCircle size={16} /></button>
                                                             <button onClick={() => generateIndividualPDF(p)} className="p-2.5 text-slate-500 hover:text-blue-600 bg-white border border-slate-200 hover:border-blue-200 hover:bg-blue-50 rounded-xl transition-all shadow-sm" title="Descargar PDF A4"><FileText size={16} /></button>
                                                             <button onClick={() => printThermalTicket(p)} className="p-2.5 text-slate-700 hover:text-white bg-slate-100 hover:bg-[#1e2a4a] border border-slate-200 hover:border-transparent rounded-xl transition-all shadow-sm" title="Reimprimir Ticket (80mm)"><Printer size={16} /></button>
                                                         </>

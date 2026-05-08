@@ -1,15 +1,17 @@
-import { exportarVentasDiariasExcel, exportarRankingProductosExcel, exportarMetodosPagoExcel, exportarVendedorRankingExcel } from "../utils/excelGenerator";
+import { exportarVentasDiariasExcel, exportarRankingProductosExcel, exportarMetodosPagoExcel, exportarVendedorRankingExcel, exportarCanalesExcel } from "../utils/excelGenerator";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from 'react-router-dom';
-import { Calendar, Download, BarChart3, Users, Package, CreditCard } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { Calendar, Download, BarChart3, Users, Package, CreditCard, Globe } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell, Legend } from 'recharts';
+import { useChanellUI } from '../context/UIContext';
 
 export default function ReportesAdmin() {
     const { role } = useAuth();
+    const { notify } = useChanellUI();
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('ventas'); // ventas, vendedores, productos, pagos
+    const [activeTab, setActiveTab] = useState('ventas'); // ventas, canales, vendedores, productos, pagos
     const [data, setData] = useState([]);
 
     // Filtros de fecha (Por defecto: Mes actual)
@@ -33,6 +35,7 @@ export default function ReportesAdmin() {
 
             let rpcName = '';
             if (activeTab === 'ventas') rpcName = 'get_reporte_ventas_diarias';
+            if (activeTab === 'canales') rpcName = 'get_reporte_canales'; // <-- NUEVO RPC
             if (activeTab === 'vendedores') rpcName = 'get_reporte_por_vendedor';
             if (activeTab === 'productos') rpcName = 'get_reporte_por_producto';
             if (activeTab === 'pagos') rpcName = 'get_reporte_metodos_pago';
@@ -46,6 +49,7 @@ export default function ReportesAdmin() {
             setData(result || []);
         } catch (error) {
             console.error("Error al cargar reporte:", error);
+            notify("Error al cargar los datos del reporte.", "error");
         } finally {
             setLoading(false);
         }
@@ -65,12 +69,15 @@ export default function ReportesAdmin() {
             exportarVendedorRankingExcel(data, periodoTxt);
         } else if (activeTab === 'pagos') {
             exportarMetodosPagoExcel(data, periodoTxt);
+        } else if (activeTab === 'canales') {
+            exportarCanalesExcel(data, periodoTxt); // <-- AHORA SÍ DISPARA LA DESCARGA
         }
     };
 
-    // Configuración de Pestañas
+    // Configuración de Pestañas (Agregada la de Canales)
     const tabs = [
         { id: 'ventas', label: 'Ventas Diarias', icon: BarChart3 },
+        { id: 'canales', label: 'Web vs Local', icon: Globe }, // <-- NUEVA PESTAÑA
         { id: 'vendedores', label: 'Vendedores', icon: Users },
         { id: 'productos', label: 'Ranking Prod.', icon: Package },
         { id: 'pagos', label: 'Métodos Pago', icon: CreditCard },
@@ -170,7 +177,39 @@ export default function ReportesAdmin() {
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <TablaGenerica data={data} columnas={['Fecha', 'N° Pedidos', 'Ingresos', 'Costos', 'Ganancia Neta']} keys={['fecha', 'num_pedidos', 'ingresos', 'costo_total', 'ganancia']} isCurrency={['ingresos', 'costo_total', 'ganancia']} />
+                                <TablaGenerica
+                                    data={data}
+                                    columnas={['Fecha', 'N° Tickets POS', 'N° Pedidos Web', 'Venta POS', 'Venta Web']}
+                                    keys={['fecha', 'cant_caja', 'cant_web', 'ingresos_caja', 'ingresos_web']}
+                                    isCurrency={['ingresos_caja', 'ingresos_web']}
+                                />                            </div>
+                        )}
+
+                        {/* VISTA NUEVA: CANALES WEB VS LOCAL */}
+                        {/* VISTA NUEVA: CANALES WEB VS LOCAL */}
+                        {activeTab === 'canales' && (
+                            <div className="space-y-6 sm:space-y-8">
+                                <div className="h-[250px] sm:h-[350px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={data} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} dy={10} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} tickFormatter={(val) => `S/${val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val}`} />
+                                            <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} formatter={(val) => [`S/ ${Number(val).toFixed(2)}`]} />
+                                            <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 'bold', color: '#1e2a4a' }} />
+                                            {/* Azul corporativo para la tienda física, Rosa vibrante para la Web */}
+                                            <Bar dataKey="ingresos_caja" name="Ventas en Local (POS)" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                                            <Bar dataKey="ingresos_web" name="Ventas Web" fill="#ec4899" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                {/* AQUÍ ESTÁ EL CAMBIO PARA MOSTRAR LAS CANTIDADES */}
+                                <TablaGenerica
+                                    data={data}
+                                    columnas={['Fecha', 'N° Tickets (Local)', 'N° Pedidos (Web)', 'Ingreso Local', 'Ingreso Web', 'Total Diario']}
+                                    keys={['fecha', 'cant_caja', 'cant_web', 'ingresos_caja', 'ingresos_web', 'ingresos_totales']}
+                                    isCurrency={['ingresos_caja', 'ingresos_web', 'ingresos_totales']}
+                                />
                             </div>
                         )}
 
@@ -238,7 +277,7 @@ function TablaGenerica({ data, columnas, keys, isCurrency = [], isPercent = [] }
 
                                 if (isCurrency.includes(k)) {
                                     val = `S/ ${Number(val).toFixed(2)}`;
-                                    if (k === 'ganancia') colorClass = "text-emerald-500";
+                                    if (k === 'ganancia' || k === 'ingresos_totales') colorClass = "text-emerald-500";
                                 } else if (isPercent.includes(k)) {
                                     val = `${Number(val).toFixed(2)}%`;
                                     colorClass = "text-[#ec4899]";
@@ -277,7 +316,7 @@ function TablaGenerica({ data, columnas, keys, isCurrency = [], isPercent = [] }
 
                                     if (isCurrency.includes(k)) {
                                         val = `S/ ${Number(val).toFixed(2)}`;
-                                        if (k === 'ganancia') cssClass = "px-5 py-4 text-sm font-black text-emerald-500 whitespace-nowrap";
+                                        if (k === 'ganancia' || k === 'ingresos_totales') cssClass = "px-5 py-4 text-sm font-black text-emerald-500 whitespace-nowrap";
                                     } else if (isPercent.includes(k)) {
                                         val = `${Number(val).toFixed(2)}%`;
                                         cssClass = "px-5 py-4 text-sm font-black text-[#ec4899] whitespace-nowrap";

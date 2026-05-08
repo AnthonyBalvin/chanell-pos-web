@@ -8,7 +8,8 @@ import {
 import { useChanellUI } from '../context/UIContext';
 
 export default function ProveedoresAdmin() {
-    const { notify } = useChanellUI();
+    // EXTRAEMOS 'confirm' ADEMÁS DE 'notify'
+    const { notify, confirm } = useChanellUI();
     const [proveedores, setProveedores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
@@ -60,11 +61,21 @@ export default function ProveedoresAdmin() {
 
     const handleSave = async (e) => {
         e.preventDefault();
+
+        // 1. MODAL DE CONFIRMACIÓN ANTES DE GUARDAR/EDITAR
+        const actionText = selectedSupplier ? "actualizar" : "registrar";
+        const isConfirmed = await confirm(
+            selectedSupplier ? "Actualizar Proveedor" : "Nuevo Proveedor",
+            `¿Estás seguro de ${actionText} a ${formData.razon_social} en la base de datos?`,
+            false
+        );
+
+        if (!isConfirmed) return; // Si el usuario cancela, detenemos la función
+
         setLoading(true);
-
         const payload = { ...formData };
-
         let error;
+
         if (selectedSupplier) {
             const { error: err } = await supabase.from('proveedores').update(payload).eq('id', selectedSupplier.id);
             error = err;
@@ -84,12 +95,27 @@ export default function ProveedoresAdmin() {
     };
 
     const toggleStatus = async (supplier) => {
+        // 2. MODAL DE CONFIRMACIÓN PARA ACTIVAR/DESACTIVAR
+        const actionText = supplier.activo ? "desactivar" : "activar";
+        const isConfirmed = await confirm(
+            `${actionText.charAt(0).toUpperCase() + actionText.slice(1)} Proveedor`,
+            `¿Deseas ${actionText} a ${supplier.razon_social}?`,
+            supplier.activo // Si está activo, desactivarlo es "destructivo" (botón rojo)
+        );
+
+        if (!isConfirmed) return;
+
         const { error } = await supabase
             .from('proveedores')
             .update({ activo: !supplier.activo })
             .eq('id', supplier.id);
 
-        if (!error) fetchProveedores();
+        if (!error) {
+            notify(`Proveedor ${supplier.activo ? 'desactivado' : 'activado'} correctamente.`, "success");
+            fetchProveedores();
+        } else {
+            notify("Error al cambiar el estado.", "error");
+        }
     };
 
     const filteredProveedores = proveedores.filter(p =>

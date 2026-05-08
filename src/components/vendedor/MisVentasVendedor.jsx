@@ -2,11 +2,14 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
-    ReceiptText, Search, Package, Globe, Store, FileText, Printer
+    ReceiptText, Search, Package, Globe, Store, FileText, Printer, MessageCircle
 } from 'lucide-react';
 import { generateIndividualPDF, printThermalTicket } from '../../utils/pdfGenerator';
+import { openUrl } from '@tauri-apps/plugin-opener'; // Puente nativo
+import { useChanellUI } from '../../context/UIContext'; // Para alertas bonitas
 
 export default function MisVentasVendedor({ user }) {
+    const { notify } = useChanellUI();
     const [pedidos, setPedidos] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -56,6 +59,30 @@ export default function MisVentasVendedor({ user }) {
 
         return matchesSearch && matchesType;
     });
+
+    // ==========================================
+    // LÓGICA DE WHATSAPP HÍBRIDA (Tauri / Web)
+    // ==========================================
+    const handleWhatsApp = async (telefono) => {
+        if (!telefono || telefono === 'N/A') return notify("Este cliente no proporcionó un teléfono de contacto.", "warning");
+
+        const cleanPhone = telefono.replace(/\D/g, '');
+        const finalPhone = cleanPhone.length === 9 ? `51${cleanPhone}` : cleanPhone;
+        const url = `https://wa.me/${finalPhone}`;
+
+        // Verificamos si estamos en la app de escritorio nativa de Tauri
+        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+            try {
+                await openUrl(url); // Abre Chrome/Edge del sistema con el chat
+            } catch (err) {
+                console.error("Error al abrir WhatsApp en Tauri:", err);
+                notify("No se pudo abrir WhatsApp automáticamente.", "error");
+            }
+        } else {
+            // Si estamos probando en la web tradicional (Vercel)
+            window.open(url, '_blank');
+        }
+    };
 
     return (
         <div className="w-full space-y-6 pb-10 sm:px-4 animate-in fade-in duration-500">
@@ -155,12 +182,21 @@ export default function MisVentasVendedor({ user }) {
                                     </div>
                                 </div>
 
-                                {/* Acciones y Precio (En móvil se separa con una línea, en PC va a la derecha) */}
+                                {/* Acciones y Precio */}
                                 <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto border-t sm:border-t-0 border-slate-100 pt-4 sm:pt-0 mt-1 sm:mt-0">
                                     <p className="font-black text-[#1e2a4a] text-xl sm:text-2xl tracking-tight">
                                         S/ {p.total?.toFixed(2)}
                                     </p>
                                     <div className="flex items-center gap-2 shrink-0">
+                                        {/* NUEVO BOTÓN DE WHATSAPP */}
+                                        <button
+                                            onClick={() => handleWhatsApp(p.cliente_telefono)}
+                                            className="p-3 sm:p-2.5 bg-[#f4f6f9] text-slate-500 hover:text-white hover:bg-[#25D366] rounded-xl transition-all"
+                                            title="Enviar comprobante por WhatsApp"
+                                        >
+                                            <MessageCircle size={18} />
+                                        </button>
+
                                         <button
                                             onClick={() => generateIndividualPDF(p)}
                                             className="p-3 sm:p-2.5 bg-[#f4f6f9] text-slate-500 hover:text-[#3b82f6] hover:bg-[#3b82f6]/10 rounded-xl transition-all"

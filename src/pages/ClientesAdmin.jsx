@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Users, Search, X, UserPlus, Phone, Mail, Edit2, ExternalLink, ShieldCheck, Loader2 } from 'lucide-react';
+import { openUrl } from '@tauri-apps/plugin-opener'; // Actualizado para coherencia con tu app
+import { useChanellUI } from '../context/UIContext'; // <-- IMPORTADO EL UIX
 
 export default function ClientesAdmin() {
+    const { notify } = useChanellUI(); // <-- INSTANCIADO EL NOTIFICADOR
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -46,24 +49,39 @@ export default function ClientesAdmin() {
             if (editingCliente) {
                 const { error } = await supabase.from('clientes').update(formData).eq('id', editingCliente.id);
                 if (error) throw error;
+                notify("Cliente actualizado exitosamente.", "success"); // <-- NOTIFICACIÓN DE ÉXITO
             } else {
                 const { error } = await supabase.from('clientes').insert([formData]);
                 if (error) throw error;
+                notify("Cliente registrado exitosamente.", "success"); // <-- NOTIFICACIÓN DE ÉXITO
             }
             setIsModalOpen(false);
             fetchClientes();
         } catch (error) {
-            alert("Error: " + (error.message.includes('unique') ? "El DNI o RUC ya se encuentra registrado en el sistema." : error.message));
+            // NOTIFICACIÓN DE ERROR
+            notify("Error: " + (error.message.includes('unique') ? "El DNI o RUC ya se encuentra registrado en el sistema." : error.message), "error");
         } finally {
             setIsSaving(false);
         }
     };
 
-    const openWhatsApp = (telefono) => {
-        if (!telefono) return;
+    const openWhatsApp = async (telefono) => {
+        if (!telefono || telefono === 'N/A') return notify("Este cliente no proporcionó teléfono.", "warning");
         const cleanPhone = telefono.replace(/\D/g, '');
         const finalPhone = cleanPhone.length === 9 ? `51${cleanPhone}` : cleanPhone;
-        window.open(`https://wa.me/${finalPhone}`, '_blank');
+
+        const url = `https://wa.me/${finalPhone}`;
+
+        // Verificamos si estamos en la app de escritorio
+        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+            try {
+                await openUrl(url); // Abre Chrome/Edge del sistema con el chat
+            } catch (err) {
+                notify("No se pudo abrir WhatsApp de escritorio.", "error");
+            }
+        } else {
+            window.open(url, '_blank'); // Para cuando uses la versión web
+        }
     };
 
     const filteredClientes = clientes.filter(c =>

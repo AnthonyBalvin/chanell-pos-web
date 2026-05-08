@@ -9,6 +9,7 @@ import {
     RefreshCw, Eye, EyeOff
 } from 'lucide-react';
 import { useChanellUI } from '../context/UIContext';
+import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 
 export default function AdminLayout() {
     const { user, role } = useAuth();
@@ -23,7 +24,6 @@ export default function AdminLayout() {
     const [loadingAlertas, setLoadingAlertas] = useState(true);
     const [alertasNoVistas, setAlertasNoVistas] = useState(0);
 
-    // Cambio de contraseña
     const [showPasswordForm, setShowPasswordForm] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,7 +34,9 @@ export default function AdminLayout() {
     const bellRef = useRef(null);
     const profileRef = useRef(null);
 
-    // Cerrar dropdowns al hacer clic fuera
+    // ==========================================
+    // 1. Cerrar dropdowns al hacer clic fuera
+    // ==========================================
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (bellRef.current && !bellRef.current.contains(e.target)) setShowNotifications(false);
@@ -47,7 +49,9 @@ export default function AdminLayout() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Cargar alertas de stock
+    // ==========================================
+    // 2. Cargar alertas de stock iniciales
+    // ==========================================
     useEffect(() => {
         fetchStockAlertas();
     }, []);
@@ -62,17 +66,99 @@ export default function AdminLayout() {
         if (data) {
             const alertas = data.filter(p => p.stock <= (p.stock_minimo || 5));
             setStockAlertas(alertas);
-
-            // Calcular cuántas son nuevas (no vistas antes)
             const vistasStr = localStorage.getItem('chanell_alertas_vistas') || '[]';
             const vistas = JSON.parse(vistasStr);
-            // Una alerta es "nueva" si su ID+stock no estaba en las vistas
             const nuevas = alertas.filter(a => !vistas.includes(`${a.id}-${a.stock}`));
             setAlertasNoVistas(nuevas.length);
         }
         setLoadingAlertas(false);
     };
 
+    // ==========================================
+    // 3. Escuchador de Pedidos Web en Tiempo Real
+    // ==========================================
+    useEffect(() => {
+        const solicitarPermiso = async () => {
+            if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+                let granted = await isPermissionGranted();
+                if (!granted) {
+                    await requestPermission();
+                }
+            }
+        };
+        solicitarPermiso();
+
+        const canalPedidos = supabase
+            .channel('nuevos-pedidos-web')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'pedidos' },
+                async (payload) => {
+                    // Si el turno_id es nulo, sabemos seguro que viene de la web
+                    if (payload.new.turno_id === null) {
+                        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+                            let granted = await isPermissionGranted();
+                            if (granted) {
+                                sendNotification({
+                                    title: '🛒 ¡Nuevo Pedido Web!',
+                                    body: `El cliente ${payload.new.cliente_nombre || 'Nuevo'} ha realizado una compra.`
+                                });
+                            }
+                        } else {
+                            notify('¡Nuevo pedido web ingresado!', 'success');
+                        }
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(canalPedidos);
+        };
+    }, []);
+
+    // ==========================================
+    // 4. NUEVO: Escuchador de Stock en Tiempo Real
+    // ==========================================
+    useEffect(() => {
+        const canalStock = supabase
+            .channel('alertas-stock-global')
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'productos' },
+                async (payload) => {
+                    // Refrescamos silenciosamente el menú de la campanita para que el puntito rojo aparezca sin presionar F5
+                    fetchStockAlertas();
+
+                    // Evaluamos si el nuevo stock bajó a niveles críticos
+                    const stockNuevo = payload.new.stock;
+                    const limite = payload.new.stock_minimo || 5;
+
+                    if (stockNuevo <= limite) {
+                        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+                            let granted = await isPermissionGranted();
+                            if (granted) {
+                                sendNotification({
+                                    title: '⚠️ Alerta de Stock Crítico',
+                                    body: `El producto "${payload.new.name}" acaba de bajar a ${stockNuevo} unidades.`
+                                });
+                            }
+                        } else {
+                            notify(`Stock crítico: ${payload.new.name}`, 'warning');
+                        }
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(canalStock);
+        };
+    }, []);
+
+    // ==========================================
+    // Funciones de Usuario y Menú
+    // ==========================================
     const handleChangePassword = async (e) => {
         e.preventDefault();
         if (newPassword.length < 6) return notify('La contraseña debe tener al menos 6 caracteres.', 'warning');
@@ -93,12 +179,10 @@ export default function AdminLayout() {
         }
     };
 
-    // Marcar alertas como vistas al abrir el panel
     const handleOpenNotifications = () => {
         setShowNotifications(!showNotifications);
         setShowProfile(false);
         if (!showNotifications) {
-            // Guardar las alertas actuales como vistas
             const vistas = stockAlertas.map(a => `${a.id}-${a.stock}`);
             localStorage.setItem('chanell_alertas_vistas', JSON.stringify(vistas));
             setAlertasNoVistas(0);
@@ -150,9 +234,10 @@ export default function AdminLayout() {
     const nombreUsuario = user?.user_metadata?.nombre || user?.email?.split('@')[0] || 'Administrador';
     const iniciales = nombreUsuario.substring(0, 2).toUpperCase();
 
+    const isTauri = typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined;
+
     return (
-        <div className="flex h-screen bg-[#f4f6f9] text-slate-800 font-sans overflow-hidden">
-            {/* OVERLAY MÓVIL */}
+        <div className={`flex ${isTauri ? 'h-full' : 'h-screen'} bg-[#f4f6f9] text-slate-800 font-sans overflow-hidden`}>
             {isMobileMenuOpen && (
                 <div
                     className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden"
@@ -160,13 +245,11 @@ export default function AdminLayout() {
                 />
             )}
 
-            {/* SIDEBAR CORPORATIVO */}
             <aside
-                className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#1e2a4a] text-white flex flex-col shadow-xl lg:shadow-none transition-transform duration-300
+                className={`fixed lg:static ${isTauri ? 'top-10 bottom-0' : 'inset-y-0'} left-0 z-50 w-64 bg-[#1e2a4a] text-white flex flex-col shadow-xl lg:shadow-none transition-transform duration-300
                 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
             >
-                {/* LOGO AREA */}
-                <div className="pt-10 pb-6 flex items-center justify-center shrink-0 relative">
+                <div className={`${isTauri ? 'pt-6' : 'pt-10'} pb-6 flex items-center justify-center shrink-0 relative`}>
                     <div className="flex flex-col items-center">
                         <span className="font-black text-3xl tracking-tight text-[#ec4899] leading-none">Chanell</span>
                         <span className="font-bold text-[11px] tracking-[0.25em] text-[#3b82f6] uppercase mt-1.5 ml-1">Tecnología</span>
@@ -179,8 +262,7 @@ export default function AdminLayout() {
                     </button>
                 </div>
 
-                {/* NAVIGATION */}
-                <nav className="flex-1 py-6 overflow-y-auto custom-scrollbar">
+                <nav className="flex-1 py-6 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
                     <ul className="space-y-1.5 px-4">
                         {visibleMenuItems.map((item) => {
                             const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
@@ -208,7 +290,6 @@ export default function AdminLayout() {
                     </ul>
                 </nav>
 
-                {/* FOOTER SIDEBAR */}
                 <div className="p-6 shrink-0">
                     <button
                         onClick={handleLogout}
@@ -219,10 +300,7 @@ export default function AdminLayout() {
                 </div>
             </aside>
 
-            {/* CONTENIDO PRINCIPAL */}
             <div className="flex-1 flex flex-col min-w-0 bg-[#f4f6f9]">
-
-                {/* HEADER CORPORATIVO */}
                 <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 shrink-0 relative z-30">
                     <div className="flex items-center gap-4">
                         <button
@@ -245,8 +323,6 @@ export default function AdminLayout() {
                     </div>
 
                     <div className="flex items-center gap-3 sm:gap-4">
-
-                        {/* ======= CAMPANA DE NOTIFICACIONES ======= */}
                         <div className="relative" ref={bellRef}>
                             <button
                                 onClick={handleOpenNotifications}
@@ -260,10 +336,8 @@ export default function AdminLayout() {
                                 )}
                             </button>
 
-                            {/* Panel de Notificaciones */}
                             {showNotifications && (
                                 <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                    {/* Header del panel */}
                                     <div className="flex items-center justify-between px-4 py-3 border-b border-slate-50 bg-[#f4f6f9]/80">
                                         <div className="flex items-center gap-2">
                                             <Bell size={14} className="text-[#ec4899]" />
@@ -278,7 +352,7 @@ export default function AdminLayout() {
                                         </button>
                                     </div>
 
-                                    <div className="max-h-72 overflow-y-auto">
+                                    <div className="max-h-72 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
                                         {loadingAlertas ? (
                                             <div className="flex justify-center py-8">
                                                 <div className="w-5 h-5 border-2 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
@@ -335,7 +409,6 @@ export default function AdminLayout() {
 
                         <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
 
-                        {/* ======= PERFIL / DROPDOWN ======= */}
                         <div className="relative" ref={profileRef}>
                             <button
                                 onClick={() => { setShowProfile(!showProfile); setShowNotifications(false); }}
@@ -352,10 +425,8 @@ export default function AdminLayout() {
                                 <ChevronDown size={14} className={`text-slate-400 hidden sm:block transition-transform duration-200 ${showProfile ? 'rotate-180' : ''}`} />
                             </button>
 
-                            {/* Dropdown del perfil */}
                             {showProfile && (
                                 <div className="absolute right-0 top-12 w-72 bg-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                    {/* Info usuario */}
                                     <div className="px-4 py-4 bg-gradient-to-br from-[#1e2a4a] to-[#3b82f6] flex items-center gap-3">
                                         <div className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0 border-2 border-white/30"
                                             style={{ background: 'rgba(236,72,153,0.6)' }}>
@@ -370,7 +441,6 @@ export default function AdminLayout() {
                                         </div>
                                     </div>
 
-                                    {/* Opciones */}
                                     <div className="p-2">
                                         {!showPasswordForm ? (
                                             <>
@@ -403,7 +473,6 @@ export default function AdminLayout() {
                                                 </button>
                                             </>
                                         ) : (
-                                            /* Formulario cambio de contraseña */
                                             <form onSubmit={handleChangePassword} className="p-2 space-y-3">
                                                 <button
                                                     type="button"
@@ -462,8 +531,7 @@ export default function AdminLayout() {
                     </div>
                 </header>
 
-                {/* ÁREA DE RENDERIZADO */}
-                <main className="flex-1 overflow-y-auto p-4 lg:p-8 lg:px-10">
+                <main className="flex-1 overflow-y-auto p-4 lg:p-8 lg:px-10 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full">
                     <div className="w-full h-full animate-in fade-in duration-500">
                         <Outlet />
                     </div>

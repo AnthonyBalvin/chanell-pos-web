@@ -31,7 +31,7 @@ export default function DashboardVendedor() {
     };
 
     return (
-        // Contenedor principal con pb-16 en móvil para que el contenido no quede oculto bajo la barra inferior
+        // Contenedor principal con pb-[72px] en móvil para la PWA Bottom Bar
         <div className="h-screen bg-[#f4f6f9] flex flex-col overflow-hidden text-gray-800 relative pb-[72px] md:pb-0">
 
             {/* HEADER SUPERIOR */}
@@ -102,8 +102,8 @@ export default function DashboardVendedor() {
                 </div>
             </header>
 
-            {/* ÁREA PRINCIPAL */}
-            <main className="flex-1 overflow-hidden relative pt-4 sm:pt-6">
+            {/* ÁREA PRINCIPAL (AQUÍ ESTÁ LA CORRECCIÓN: flex-1, flex-col, min-h-0) */}
+            <main className="flex-1 flex flex-col min-h-0 w-full relative pt-4 sm:pt-6">
                 {activeView === 'pos' && <PosAdmin onCloseCaja={() => setActiveView('ventas')} />}
                 {activeView === 'web' && <PedidosWebVendedor user={user} activeShift={activeShift} onGoToTickets={() => setActiveView('ventas')} />}
                 {activeView === 'ventas' && <MisVentasVendedor user={user} />}

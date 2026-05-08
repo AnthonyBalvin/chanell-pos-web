@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import gsap from 'gsap';
 import { useChanellUI } from '../context/UIContext';
+import { open } from '@tauri-apps/plugin-shell';
 
 export default function PedidosWebAdmin() {
     const { notify, confirm } = useChanellUI();
@@ -72,11 +73,19 @@ export default function PedidosWebAdmin() {
         }
     };
 
-    const openWhatsApp = (telefono) => {
+    const openWhatsApp = async (telefono) => {
         if (!telefono || telefono === 'N/A') return notify("Este cliente no proporcionó teléfono.", "error");
         const cleanPhone = telefono.replace(/\D/g, '');
         const finalPhone = cleanPhone.length === 9 ? `51${cleanPhone}` : cleanPhone;
-        window.open(`https://wa.me/${finalPhone}`, '_blank');
+
+        const url = `https://wa.me/${finalPhone}`;
+
+        // Verificamos si estamos en la app de escritorio
+        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+            await open(url); // Le dice a Windows que abra Chrome con este link
+        } else {
+            window.open(url, '_blank'); // Para cuando uses la versión web en Vercel
+        }
     };
 
     // =========================================================================
@@ -85,7 +94,7 @@ export default function PedidosWebAdmin() {
     const ejecutarCobroWeb = async (destination) => {
         const nombresMetodos = { 'efectivo': 'Efectivo', 'yape_pos': 'Yape/POS Tienda', 'banco': 'Transferencia' };
 
-        const isConfirmed = await confirm("Oficializar Venta", `💰 ¿Confirmas que recibiste S/ ${selectedPedido.total?.toFixed(2)} mediante ${nombresMetodos[destination]}? Al aceptar, el Lead se cerrará y pasará a Ventas.`, true);
+        const isConfirmed = await confirm("Oficializar Venta", `¿Confirmas que recibiste S/ ${selectedPedido.total?.toFixed(2)} mediante ${nombresMetodos[destination]}? Al aceptar, el Lead se cerrará y pasará a Ventas.`, true);
         if (!isConfirmed) return;
 
         setIsProcessingSale(true);

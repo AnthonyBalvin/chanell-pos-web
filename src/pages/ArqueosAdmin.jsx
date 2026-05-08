@@ -3,8 +3,11 @@ import { supabase } from '../lib/supabase';
 import { Wallet, Calendar, User, FileText, X, TrendingDown, CheckCircle, AlertTriangle, Lock, Unlock, ShieldCheck, CheckCircle2, Search, Download } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useChanellUI } from '../context/UIContext';
+import { saveFileNatively } from '../utils/tauriFileSaver'; // IMPORTANTE: Agregado el puente nativo
 
 export default function ArqueosAdmin() {
+    const { notify, confirm } = useChanellUI();
     const [turnos, setTurnos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -39,7 +42,10 @@ export default function ArqueosAdmin() {
         return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) + ' - ' + date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
     };
 
-    const handleDownloadPDF = () => {
+    // -------------------------------------------------------------
+    // GENERACIÓN Y GUARDADO DE PDF NATIVO (TAURI)
+    // -------------------------------------------------------------
+    const handleDownloadPDF = async () => {
         if (!selectedTurno) return;
         try {
             const doc = new jsPDF();
@@ -144,10 +150,16 @@ export default function ArqueosAdmin() {
             doc.text("Firma del Cajero", 55, firmasY + 5, { align: 'center' });
             doc.text("Firma de Gerencia", 155, firmasY + 5, { align: 'center' });
 
-            doc.save(`Arqueo_${selectedTurno.usuario_nombre?.split(' ')[0] || 'Turno'}_${new Date(selectedTurno.created_at).getTime()}.pdf`);
+            const fileName = `Arqueo_${selectedTurno.usuario_nombre?.split(' ')[0] || 'Turno'}_${new Date(selectedTurno.created_at).getTime()}.pdf`;
+
+            // Lógica de Guardado Nativo en Tauri
+            const savedNatively = await saveFileNatively(doc.output('arraybuffer'), fileName, 'pdf');
+            if (!savedNatively) {
+                doc.save(fileName); // Fallback si falla o está en web
+            }
         } catch (error) {
             console.error(error);
-            alert("No se pudo generar el documento PDF.");
+            notify("No se pudo generar el documento PDF.", "error"); // UIX
         }
     };
 
@@ -281,7 +293,6 @@ export default function ArqueosAdmin() {
 
                                 return (
                                     <div key={turno.id} className="p-5 flex flex-col gap-4">
-                                        {/* Cabecera Tarjeta */}
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <h3 className="font-bold text-[#1e2a4a] text-sm">{turno.usuario_nombre || 'Vendedor'}</h3>
@@ -291,8 +302,6 @@ export default function ArqueosAdmin() {
                                                 {turno.estado}
                                             </span>
                                         </div>
-
-                                        {/* Metricas */}
                                         <div className="grid grid-cols-2 gap-3 bg-[#f4f6f9]/50 p-3 rounded-xl border border-slate-100">
                                             <div>
                                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Base Sencillo</p>
@@ -307,8 +316,6 @@ export default function ArqueosAdmin() {
                                                 ) : <span className="text-slate-400 text-xs font-bold">Pendiente</span>}
                                             </div>
                                         </div>
-
-                                        {/* Acciones */}
                                         <button onClick={() => handleVerDetalle(turno)} className="w-full flex justify-center items-center gap-2 py-3 bg-[#f4f6f9] hover:bg-[#3b82f6]/10 text-slate-600 hover:text-[#3b82f6] rounded-xl text-xs font-bold transition-all mt-1">
                                             <FileText size={16} /> Ver Detalle de Arqueo
                                         </button>
@@ -380,14 +387,10 @@ export default function ArqueosAdmin() {
                 )}
             </div>
 
-            {/* ============================================================== */}
-            {/* MODAL 1: DETALLE DEL ARQUEO (Mobile First Bottom Sheet)        */}
-            {/* ============================================================== */}
+            {/* MODAL 1: DETALLE DEL ARQUEO */}
             {isModalOpen && selectedTurno && (
                 <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
                     <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-full sm:zoom-in duration-300">
-
-                        {/* Handle bar for mobile */}
                         <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
                             <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
                         </div>
@@ -430,7 +433,6 @@ export default function ArqueosAdmin() {
                                 </div>
                             )}
 
-                            {/* Grilla Financiera responsive */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <div className="bg-[#f4f6f9] p-3 sm:p-4 rounded-2xl border border-transparent">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Apertura</p>
@@ -452,7 +454,6 @@ export default function ArqueosAdmin() {
                                 </div>
                             </div>
 
-                            {/* Detalles Egresos */}
                             <div>
                                 <h4 className="text-xs sm:text-sm font-bold text-[#1e2a4a] mb-3 flex items-center gap-2">
                                     <TrendingDown className="text-amber-500" size={16} /> Egresos del Turno
@@ -463,7 +464,6 @@ export default function ArqueosAdmin() {
                                     </div>
                                 ) : (
                                     <>
-                                        {/* Móvil: Lista de Gastos */}
                                         <div className="md:hidden space-y-2">
                                             {gastos.map(g => (
                                                 <div key={g.id} className="flex justify-between items-center bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
@@ -475,7 +475,6 @@ export default function ArqueosAdmin() {
                                                 </div>
                                             ))}
                                         </div>
-                                        {/* Desktop: Tabla de Gastos */}
                                         <div className="hidden md:block border border-slate-100 rounded-2xl overflow-hidden">
                                             <table className="w-full text-left text-xs">
                                                 <thead className="bg-[#f4f6f9]/50 text-[#1e2a4a] text-[10px] uppercase tracking-widest font-black">
@@ -504,13 +503,12 @@ export default function ArqueosAdmin() {
                 </div>
             )}
 
-            {/* ============================================================== */}
-            {/* MODAL 2: COMPONENTE AISLADO DE AUDITORÍA                     */}
-            {/* ============================================================== */}
+            {/* MODAL 2: COMPONENTE AISLADO DE AUDITORÍA */}
             {isAdjustModalOpen && selectedTurno && (
                 <ModalAjusteAuditoria
                     turno={selectedTurno}
                     onClose={() => setIsAdjustModalOpen(false)}
+                    notify={notify} // Pasamos notify al hijo
                     onSuccess={(nuevoTurno) => {
                         setIsAdjustModalOpen(false);
                         fetchTurnos();
@@ -523,9 +521,9 @@ export default function ArqueosAdmin() {
 }
 
 // ---------------------------------------------------------------------------
-// COMPONENTE AISLADO: Modal de Ajuste (Refactorizado para Móvil)
+// COMPONENTE AISLADO: Modal de Ajuste (Actualizado para usar notify)
 // ---------------------------------------------------------------------------
-function ModalAjusteAuditoria({ turno, onClose, onSuccess }) {
+function ModalAjusteAuditoria({ turno, onClose, onSuccess, notify }) {
     const [adjustMonto, setAdjustMonto] = useState('');
     const [adjustNota, setAdjustNota] = useState('');
     const [isAdjusting, setIsAdjusting] = useState(false);
@@ -536,7 +534,7 @@ function ModalAjusteAuditoria({ turno, onClose, onSuccess }) {
 
     const handleGuardarAjuste = async (e) => {
         e.preventDefault();
-        if (!adjustNota.trim()) return alert("Debes ingresar una justificación para la auditoría.");
+        if (!adjustNota.trim()) return notify("Debes ingresar una justificación para la auditoría.", "warning"); // UIX
         setIsAdjusting(true);
 
         const nuevoMontoDeclarado = montoDigitado;
@@ -553,10 +551,10 @@ function ModalAjusteAuditoria({ turno, onClose, onSuccess }) {
         }).eq('id', turno.id);
 
         if (error) {
-            alert("Error al guardar ajuste: " + error.message);
+            notify("Error al guardar ajuste: " + error.message, "error"); // UIX
             setIsAdjusting(false);
         } else {
-            alert("El arqueo ha sido ajustado correctamente.");
+            notify("El arqueo ha sido ajustado correctamente.", "success"); // UIX
             onSuccess({
                 ...turno,
                 monto_cierre_declarado: nuevoMontoDeclarado,
@@ -569,8 +567,6 @@ function ModalAjusteAuditoria({ turno, onClose, onSuccess }) {
     return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
             <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-full sm:zoom-in duration-200">
-
-                {/* Handle bar for mobile */}
                 <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
                     <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
                 </div>
@@ -591,7 +587,6 @@ function ModalAjusteAuditoria({ turno, onClose, onSuccess }) {
 
                 <div className="p-5 sm:p-8 bg-white">
                     <form onSubmit={handleGuardarAjuste} className="space-y-6">
-
                         <div>
                             <div className="flex justify-between items-end mb-2">
                                 <div>
