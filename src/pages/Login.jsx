@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Shield, Eye, EyeOff, ArrowLeft, MailCheck, ShieldAlert, Fingerprint, LockKeyhole, Cpu } from 'lucide-react';
+import { Shield, Eye, EyeOff, ArrowLeft, MailCheck, Fingerprint, Cpu } from 'lucide-react';
 import gsap from 'gsap';
 import { supabase } from '../lib/supabase';
 import { useChanellUI } from '../context/UIContext';
@@ -20,42 +20,56 @@ export default function Login() {
     const [recoveryEmail, setRecoveryEmail] = useState('');
     const [recoveryStep, setRecoveryStep] = useState('input');
 
+    // Nuevo estado para mostrar error en UI
+    const [loginError, setLoginError] = useState('');
+
     // Animación de entrada inicial con GSAP
     useEffect(() => {
         const tl = gsap.timeline();
         if (window.innerWidth >= 1024) {
-            tl.fromTo(contentLeftRef.current,
+            tl.fromTo(
+                contentLeftRef.current,
                 { opacity: 0, x: -30 },
-                { opacity: 1, x: 0, duration: 0.8, ease: "power3.out" }
+                { opacity: 1, x: 0, duration: 0.8, ease: 'power3.out' }
             );
         }
-        tl.fromTo(containerRef.current,
+        tl.fromTo(
+            containerRef.current,
             { opacity: 0, y: 30 },
-            { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
-            "-=0.4"
+            { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' },
+            '-=0.4'
         );
     }, []);
 
     const handleLogin = async (e) => {
+        if (loading) return;
         e.preventDefault();
+        setLoginError('');
         setLoading(true);
 
         const { data, error } = await supabase.auth.signInWithPassword({
-            email,
+            email: email.trim(),
             password
         });
 
         if (error) {
-            if (error.message.includes("Email not confirmed")) {
-                notify("Acción Requerida: Cuenta no verificada. Por favor revisa tu bandeja de entrada o Spam.", "info");
+            const msg = (error.message || '').toLowerCase();
+
+            if (msg.includes('email not confirmed')) {
+                setLoginError('Tu cuenta no está verificada. Revisa tu correo o Spam.');
+                notify('Acción requerida: cuenta no verificada.', 'info');
+            } else if (msg.includes('invalid login credentials')) {
+                setLoginError('Correo o contraseña incorrectos.');
             } else {
-                notify("Error al iniciar sesión: Credenciales incorrectas.", "error");
+                setLoginError('No se pudo iniciar sesión. Intenta nuevamente.');
             }
+
             setLoading(false);
-        } else {
-            const userRole = data.user?.user_metadata?.rol;
-            window.location.href = userRole === 'admin' ? '/admin' : '/vendedor';
+            return;
         }
+
+        const userRole = data.user?.user_metadata?.rol;
+        window.location.href = userRole === 'admin' ? '/admin' : '/vendedor';
     };
 
     const getMaskedEmail = (mail) => {
@@ -75,7 +89,7 @@ export default function Login() {
 
         setLoading(false);
         if (error) {
-            notify("Hubo un error: " + error.message, "error");
+            notify('No se pudo enviar el enlace de recuperación. Intenta nuevamente.', 'error');
         } else {
             setRecoveryStep('success');
         }
@@ -83,14 +97,10 @@ export default function Login() {
 
     return (
         <div className="relative flex flex-col lg:flex-row w-full min-h-screen bg-slate-50 font-sans overflow-hidden">
-
-            {/* --------------------------------------------------------
-                PANEL AZUL (Izquierdo en PC, Superior en Móvil)
-            --------------------------------------------------------- */}
+            {/* PANEL AZUL */}
             <div
                 className={`relative lg:absolute top-0 w-full lg:w-1/2 min-h-[30vh] lg:h-full bg-gradient-to-br from-[#1e2a4a] to-[#0f172a] flex-col justify-center lg:justify-between p-8 sm:p-12 lg:p-16 z-20 shadow-2xl transition-transform duration-[800ms] ease-[cubic-bezier(0.85,0,0.15,1)] flex ${isRecovering ? 'lg:translate-x-full' : 'lg:left-0'}`}
             >
-                {/* Patrones Tecnológicos de Fondo */}
                 <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden flex items-center justify-center">
                     <Fingerprint size={800} strokeWidth={0.5} className="absolute -left-1/4 text-white opacity-20" />
                     <Cpu size={500} strokeWidth={0.5} className="absolute -right-1/4 top-1/4 text-white opacity-20 rotate-12" />
@@ -136,15 +146,11 @@ export default function Login() {
                 </div>
             </div>
 
-            {/* --------------------------------------------------------
-                PANEL BLANCO (Derecho en PC, Inferior en Móvil)
-            --------------------------------------------------------- */}
+            {/* PANEL BLANCO */}
             <div
                 className={`relative lg:absolute top-0 w-full lg:w-1/2 flex-1 lg:h-full flex items-center justify-center p-6 sm:p-12 lg:p-24 bg-white z-10 transition-transform duration-[800ms] ease-[cubic-bezier(0.85,0,0.15,1)] ${isRecovering ? 'lg:left-0' : 'lg:right-0'} rounded-t-[40px] lg:rounded-none -mt-10 lg:mt-0 shadow-[0_-20px_40px_rgba(0,0,0,0.1)] lg:shadow-none`}
             >
                 <div className="w-full max-w-sm lg:max-w-md relative pt-6 lg:pt-0" ref={containerRef}>
-
-                    {/* VISTA 1: LOGIN NORMAL */}
                     {!isRecovering && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                             <div className="mb-10 text-center lg:text-left">
@@ -159,7 +165,10 @@ export default function Login() {
                                         <input
                                             type="email"
                                             value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
+                                            onChange={(e) => {
+                                                setEmail(e.target.value);
+                                                if (loginError) setLoginError('');
+                                            }}
                                             className="w-full bg-[#f4f6f9] border border-transparent rounded-2xl px-5 py-4 text-[#1e2a4a] text-sm font-bold focus:outline-none focus:bg-white focus:border-[#ec4899] focus:ring-4 focus:ring-[#ec4899]/10 transition-all placeholder:text-slate-400 placeholder:font-medium"
                                             placeholder="admin@chanell.com"
                                             required
@@ -171,9 +180,12 @@ export default function Login() {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña</label>
                                     <div className="relative">
                                         <input
-                                            type={showPassword ? "text" : "password"}
+                                            type={showPassword ? 'text' : 'password'}
                                             value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
+                                            onChange={(e) => {
+                                                setPassword(e.target.value);
+                                                if (loginError) setLoginError('');
+                                            }}
                                             className="w-full bg-[#f4f6f9] border border-transparent rounded-2xl pl-5 pr-12 py-4 text-[#1e2a4a] text-sm font-bold focus:outline-none focus:bg-white focus:border-[#ec4899] focus:ring-4 focus:ring-[#ec4899]/10 transition-all placeholder:text-slate-400 placeholder:font-medium"
                                             placeholder="••••••••"
                                             required
@@ -198,19 +210,32 @@ export default function Login() {
                                                 onChange={(e) => setRememberMe(e.target.checked)}
                                                 className="peer appearance-none w-5 h-5 border-2 border-slate-300 rounded-lg cursor-pointer checked:bg-[#1e2a4a] checked:border-[#1e2a4a] transition-all"
                                             />
-                                            <svg className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            <svg className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
                                         </div>
                                         <span className="text-xs font-bold text-slate-500 group-hover:text-[#1e2a4a] transition-colors">Recordarme</span>
                                     </label>
 
                                     <button
                                         type="button"
-                                        onClick={() => { setIsRecovering(true); setRecoveryStep('input'); }}
+                                        onClick={() => {
+                                            setIsRecovering(true);
+                                            setRecoveryStep('input');
+                                            setLoginError('');
+                                            setPassword('');
+                                        }}
                                         className="text-xs font-black text-slate-400 hover:text-[#ec4899] transition-colors uppercase tracking-wider"
                                     >
                                         ¿Olvidó su clave?
                                     </button>
                                 </div>
+
+                                {loginError && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                                        <p className="text-xs font-bold text-red-600">{loginError}</p>
+                                    </div>
+                                )}
 
                                 <button
                                     type="submit"
@@ -223,11 +248,14 @@ export default function Login() {
                         </div>
                     )}
 
-                    {/* VISTA 2: RECUPERAR CONTRASEÑA */}
                     {isRecovering && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                             <button
-                                onClick={() => setIsRecovering(false)}
+                                onClick={() => {
+                                    setIsRecovering(false);
+                                    setRecoveryEmail('');
+                                    setRecoveryStep('input');
+                                }}
                                 className="flex items-center gap-2 text-[10px] font-black text-slate-400 hover:text-[#1e2a4a] uppercase tracking-widest mb-8 transition-colors"
                             >
                                 <ArrowLeft size={14} /> Retornar
@@ -280,11 +308,9 @@ export default function Login() {
                             )}
                         </div>
                     )}
-
                 </div>
             </div>
 
-            {/* ESTILO GLOBAL PARA OCULTAR EL OJO NATIVO DE LOS NAVEGADORES */}
             <style jsx="true">{`
                 input[type="password"]::-ms-reveal,
                 input[type="password"]::-ms-clear {
